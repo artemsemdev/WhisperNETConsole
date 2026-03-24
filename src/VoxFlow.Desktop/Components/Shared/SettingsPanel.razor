@@ -1,0 +1,98 @@
+@inject SettingsViewModel Settings
+
+<div class="settings-overlay" @onclick="OnClose"></div>
+
+<aside class="settings-panel">
+    <div class="settings-header">
+        <h2>Settings</h2>
+        <button class="settings-close" @onclick="OnClose">&times;</button>
+    </div>
+
+    <div class="settings-body">
+        <div class="settings-group">
+            <label>Model</label>
+            <select @bind="Settings.ModelType">
+                <option value="tiny">tiny</option>
+                <option value="base">base</option>
+                <option value="small">small</option>
+                <option value="medium">medium</option>
+                <option value="large">large</option>
+            </select>
+        </div>
+
+        <div class="settings-group">
+            <label>Language</label>
+            <select @bind="Settings.Language">
+                <option value="English">English</option>
+                <option value="Russian">Russian</option>
+                <option value="Spanish">Spanish</option>
+                <option value="French">French</option>
+                <option value="German">German</option>
+                <option value="Japanese">Japanese</option>
+                <option value="Chinese">Chinese</option>
+            </select>
+        </div>
+
+        <div class="settings-group">
+            <label>Output Directory</label>
+            <input type="text" @bind="Settings.OutputDirectory" placeholder="Default output directory" />
+            <button class="btn btn-secondary btn-sm mt-2" @onclick="ChangeOutputDirectory">
+                Change
+            </button>
+        </div>
+
+        <div class="settings-group">
+            <label>ffmpeg Path</label>
+            <input type="text" @bind="Settings.FfmpegPath" placeholder="/usr/local/bin/ffmpeg" />
+            <button class="btn btn-secondary btn-sm mt-2" @onclick="ChangeFfmpegPath">
+                Change
+            </button>
+        </div>
+
+        <div class="settings-group">
+            <button class="btn btn-secondary btn-sm" @onclick="OpenConfigFile">
+                Open appsettings.json
+            </button>
+        </div>
+
+        <div class="settings-group">
+            <button class="btn btn-primary" @onclick="SaveSettings">
+                Save
+            </button>
+        </div>
+    </div>
+</aside>
+
+@code {
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Settings.LoadAsync();
+    }
+
+    private async Task SaveSettings()
+    {
+        await Settings.SaveAsync();
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task ChangeOutputDirectory()
+    {
+        // File picker dialog will be wired via JS interop in Task 17
+        await Task.CompletedTask;
+    }
+
+    private async Task ChangeFfmpegPath()
+    {
+        // File picker dialog will be wired via JS interop in Task 17
+        await Task.CompletedTask;
+    }
+
+    private async Task OpenConfigFile()
+    {
+        // Shell open will be wired via JS interop in Task 17
+        await Task.CompletedTask;
+    }
+}

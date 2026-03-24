@@ -1,0 +1,48 @@
+@inject AppViewModel ViewModel
+
+<footer class="status-bar">
+    @if (ViewModel.ValidationResult is not null)
+    {
+        @* ffmpeg status *@
+        <span class="status-indicator">
+            <span class="status-dot @GetCheckDotClass("ffmpeg")"></span>
+            <span>ffmpeg</span>
+        </span>
+
+        @* Model status *@
+        <span class="status-indicator">
+            <span class="status-dot @GetCheckDotClass("model")"></span>
+            <span>Model</span>
+        </span>
+
+        @* Language indicator *@
+        <span class="status-indicator">
+            <span class="status-dot @GetCheckDotClass("language")"></span>
+            <span>Language</span>
+        </span>
+    }
+    else
+    {
+        <span class="text-muted">Initializing...</span>
+    }
+</footer>
+
+@code {
+    private string GetCheckDotClass(string nameFragment)
+    {
+        if (ViewModel.ValidationResult is null) return "";
+
+        var check = ViewModel.ValidationResult.Checks
+            .FirstOrDefault(c => c.Name.Contains(nameFragment, StringComparison.OrdinalIgnoreCase));
+
+        if (check is null) return "";
+
+        return check.Status switch
+        {
+            ValidationCheckStatus.Passed => "status-ok",
+            ValidationCheckStatus.Warning => "status-warning",
+            ValidationCheckStatus.Failed => "status-error",
+            _ => ""
+        };
+    }
+}
