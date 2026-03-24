@@ -6,20 +6,26 @@
      @onclick="BrowseFiles"
      @onkeydown="HandleKeyDown">
 
-    <span class="drop-icon">🎤</span>
-    <span class="drop-label">@(Label ?? "Drop audio file here")</span>
-    <span class="drop-hint">Drop a file anywhere in the window or click to browse</span>
-    <button class="btn btn-secondary btn-sm mt-2"
+    <div class="upload-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+    </div>
+    <span class="drop-label">@(Label ?? "No files added yet")</span>
+    <span class="drop-hint">Drop your M4A files here or <span class="drop-browse-link">browse</span> from your device.</span>
+    <button class="btn btn-primary mt-4"
             @onclick="BrowseFiles"
             @onclick:stopPropagation="true">
-        Browse Files
+        + Browse Files
     </button>
 </div>
 
 @if (!string.IsNullOrWhiteSpace(_selectionError))
 {
     <div class="message message-error mt-4">
-        <span class="message-icon">\u2717</span>
+        <span class="message-icon">&#x2717;</span>
         <span>@_selectionError</span>
     </div>
 }

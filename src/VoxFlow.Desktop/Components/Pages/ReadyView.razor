@@ -1,13 +1,17 @@
 @inject AppViewModel ViewModel
 
 <div class="text-center">
-    <h2>Ready to Transcribe</h2>
-    <p class="text-secondary mt-2">Drop an audio file or click browse to get started.</p>
+    <h1 class="app-main-title">Audio Transcription</h1>
+    <p class="text-secondary mt-2">Drop your M4A files here to convert speech into text</p>
 </div>
 
 <div class="mt-6">
-    <DropZone OnFileSelected="HandleFileSelected" Label="Drop audio file here" />
+    <DropZone OnFileSelected="HandleFileSelected" />
 </div>
+
+<p class="text-muted mt-4 text-center supported-formats">
+    Supported format: M4A. You can upload multiple files.
+</p>
 
 @code {
     private async Task HandleFileSelected(string filePath)
