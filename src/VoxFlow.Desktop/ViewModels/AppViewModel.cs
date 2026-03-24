@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
+using VoxFlow.Desktop.Services;
 
 namespace VoxFlow.Desktop.ViewModels;
 
@@ -77,7 +78,7 @@ public class AppViewModel : INotifyPropertyChanged
         CurrentState = AppState.Running;
         ErrorMessage = null;
         _cts = new CancellationTokenSource();
-        var progress = new Progress<ProgressUpdate>(update => CurrentProgress = update);
+        var progress = new BlazorProgressHandler(this);
         try
         {
             var request = new TranscribeFileRequest(filePath);
