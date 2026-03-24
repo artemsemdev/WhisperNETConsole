@@ -11,15 +11,13 @@ public class AppViewModel : INotifyPropertyChanged
     private readonly ITranscriptionService _transcriptionService;
     private readonly IValidationService _validationService;
     private readonly IConfigurationService _configService;
-    private readonly IModelService _modelService;
 
-    private AppState _currentState = AppState.NotReady;
+    private AppState _currentState = AppState.Ready;
     private ValidationResult? _validationResult;
     private TranscribeFileResult? _transcriptionResult;
     private ProgressUpdate? _currentProgress;
     private string? _errorMessage;
     private string? _lastFilePath;
-    private bool _isDownloadingModel;
     private CancellationTokenSource? _cts;
 
     public AppViewModel(
@@ -31,7 +29,6 @@ public class AppViewModel : INotifyPropertyChanged
         _transcriptionService = transcriptionService;
         _validationService = validationService;
         _configService = configService;
-        _modelService = modelService;
     }
 
     public AppState CurrentState
@@ -64,17 +61,20 @@ public class AppViewModel : INotifyPropertyChanged
         private set { _errorMessage = value; OnPropertyChanged(); }
     }
 
+    public string? CurrentFileName => _lastFilePath is not null ? Path.GetFileName(_lastFilePath) : null;
+
     public async Task InitializeAsync()
     {
         var options = await _configService.LoadAsync();
         var result = await _validationService.ValidateAsync(options);
         ValidationResult = result;
-        CurrentState = result.CanStart ? AppState.Ready : AppState.NotReady;
+        CurrentState = AppState.Ready;
     }
 
     public async Task TranscribeFileAsync(string filePath)
     {
         _lastFilePath = filePath;
+        OnPropertyChanged(nameof(CurrentFileName));
         CurrentState = AppState.Running;
         ErrorMessage = null;
         _cts = new CancellationTokenSource();
@@ -96,25 +96,12 @@ public class AppViewModel : INotifyPropertyChanged
         if (_lastFilePath != null) await TranscribeFileAsync(_lastFilePath);
     }
 
-    public async Task RevalidateAsync() => await InitializeAsync();
-
-    public bool IsDownloadingModel
+    public void GoToReady()
     {
-        get => _isDownloadingModel;
-        private set { _isDownloadingModel = value; OnPropertyChanged(); }
-    }
-
-    public async Task DownloadModelAsync()
-    {
-        IsDownloadingModel = true;
-        try
-        {
-            var options = await _configService.LoadAsync();
-            await _modelService.GetOrCreateFactoryAsync(options);
-            await RevalidateAsync();
-        }
-        catch (Exception ex) { ErrorMessage = $"Model download failed: {ex.Message}"; }
-        finally { IsDownloadingModel = false; }
+        CurrentState = AppState.Ready;
+        ErrorMessage = null;
+        TranscriptionResult = null;
+        CurrentProgress = null;
     }
 
     public void CancelTranscription() => _cts?.Cancel();
