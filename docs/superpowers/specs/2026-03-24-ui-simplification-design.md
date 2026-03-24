@@ -167,6 +167,15 @@ Minimal changes:
 | `CompleteView_BackButton_NavigatesToReady` | Back arrow returns to ready state |
 | `ReadyView_ShowsExpectedLayout` | Verify title, subtitle, drop zone text |
 
+### AppViewModelTests.cs Changes
+
+| Test | Changes |
+|------|---------|
+| `InitializeAsync_FailingValidation_StateBecomesNotReady` | Remove — NotReady state no longer exists |
+| `RetryAsync_WithNoFilePath_DoesNothing` | Update default state assertion from NotReady to Ready |
+| `DownloadModelAsync_CallsModelServiceAndRevalidates` | Remove — DownloadModelAsync() removed from ViewModel |
+| Tests referencing `IsDownloadingModel` | Remove — property removed |
+
 ### Test Infrastructure Changes
 
 - Remove `SettingsViewModel` from `DesktopUiTestContext` (constructor and DI)
