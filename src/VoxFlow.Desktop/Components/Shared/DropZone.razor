@@ -1,10 +1,11 @@
 @using VoxFlow.Desktop.Platform
 
 <div id="file-drop-zone"
-     class="drop-zone"
+     class="drop-zone @(IsDisabled ? "drop-zone-disabled" : string.Empty)"
      role="button"
      aria-label="Audio File Drop Zone"
-     tabindex="0"
+     aria-disabled="@IsDisabled"
+     tabindex="@(IsDisabled ? "-1" : "0")"
      @onclick="BrowseFiles"
      @onkeydown="HandleKeyDown">
 
@@ -21,6 +22,7 @@
             class="btn btn-primary mt-4"
             aria-label="Browse Files"
             title="Browse Files"
+            disabled="@IsDisabled"
             @onclick="BrowseFiles"
             @onclick:stopPropagation="true">
         + Browse Files
@@ -42,10 +44,18 @@
     [Parameter]
     public string? Label { get; set; }
 
+    [Parameter]
+    public bool IsDisabled { get; set; }
+
     private string? _selectionError;
 
     private async Task BrowseFiles()
     {
+        if (IsDisabled)
+        {
+            return;
+        }
+
         _selectionError = null;
 
         try

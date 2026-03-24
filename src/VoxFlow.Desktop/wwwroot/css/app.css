@@ -103,6 +103,19 @@ html, body {
     background: rgba(74, 74, 255, 0.06);
 }
 
+.drop-zone-disabled,
+.drop-zone-disabled:hover {
+    border-color: var(--border);
+    background: rgba(15, 52, 96, 0.08);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.drop-zone-disabled .btn {
+    cursor: not-allowed;
+}
+
 .drop-zone.drag-over {
     border-color: var(--accent);
     background: rgba(74, 74, 255, 0.12);

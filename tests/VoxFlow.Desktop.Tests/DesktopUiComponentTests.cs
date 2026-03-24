@@ -109,6 +109,31 @@ public sealed class DesktopUiComponentTests
     }
 
     [Fact]
+    public async Task Routes_WhenStartupValidationHasBlockingErrors_ShowsMessage_AndDisablesBrowse()
+    {
+        var validationService = new DelegateValidationService((_, _) =>
+            Task.FromResult(TestValidationFactory.Create(
+                canStart: false,
+                new ValidationCheck(
+                    "Whisper runtime",
+                    ValidationCheckStatus.Failed,
+                    "Whisper runtime is not supported in VoxFlow Desktop on Intel Macs."))));
+
+        await using var context = DesktopUiTestContext.Create(validationService: validationService);
+        var rendered = await context.RenderAsync<Routes>();
+
+        Assert.Equal(AppState.Ready, context.ViewModel.CurrentState);
+        Assert.True(context.ViewModel.HasBlockingValidationErrors);
+        Assert.Contains("Intel Macs", rendered.TextContent);
+
+        var browseButton = rendered.FindElement(
+            element => element.Name == "button" && element.TextContent == "+ Browse Files",
+            "browse files button");
+
+        Assert.True(browseButton.Attributes.ContainsKey("disabled"));
+    }
+
+    [Fact]
     public async Task Routes_WhenTranscriptionFails_ChooseDifferentFile_ReturnsToReady()
     {
         var transcriptionService = new DelegateTranscriptionService((_, _, _) =>

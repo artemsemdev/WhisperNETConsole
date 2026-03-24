@@ -79,9 +79,14 @@ internal sealed class ModelService : IModelService
 
         // Prefer reuse because model download is large, slow, and unnecessary when
         // the configured file already exists and can be loaded successfully.
-        if (TryCreateFactory(options.ModelFilePath, out var whisperFactory, out _))
+        if (TryCreateFactory(options.ModelFilePath, out var whisperFactory, out var initialError))
         {
             return whisperFactory;
+        }
+
+        if (WhisperRuntimeFailureFormatter.IsFatalPlatformCompatibilityFailure(initialError))
+        {
+            throw new InvalidOperationException(initialError);
         }
 
         await DownloadModelAsync(options.ModelFilePath, modelType, cancellationToken).ConfigureAwait(false);
@@ -89,6 +94,11 @@ internal sealed class ModelService : IModelService
         if (TryCreateFactory(options.ModelFilePath, out whisperFactory, out var error))
         {
             return whisperFactory;
+        }
+
+        if (WhisperRuntimeFailureFormatter.IsFatalPlatformCompatibilityFailure(error))
+        {
+            throw new InvalidOperationException(error);
         }
 
         throw new InvalidOperationException(
@@ -130,7 +140,7 @@ internal sealed class ModelService : IModelService
         }
         catch (Exception ex)
         {
-            error = ex.Message;
+            error = WhisperRuntimeFailureFormatter.GetFriendlyMessage(ex);
             whisperFactory?.Dispose();
             whisperFactory = null!;
             return false;

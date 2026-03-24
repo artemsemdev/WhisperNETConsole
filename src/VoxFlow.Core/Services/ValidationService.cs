@@ -196,7 +196,10 @@ internal sealed class ValidationService : IValidationService
         }
         catch (Exception ex)
         {
-            return new ValidationCheck("Whisper runtime", ValidationCheckStatus.Failed, ex.Message);
+            return new ValidationCheck(
+                "Whisper runtime",
+                ValidationCheckStatus.Failed,
+                WhisperRuntimeFailureFormatter.GetFriendlyMessage(ex));
         }
     }
 
@@ -316,10 +319,19 @@ internal sealed class ValidationService : IValidationService
         }
         catch (Exception ex)
         {
+            var error = WhisperRuntimeFailureFormatter.GetFriendlyMessage(ex);
+            if (WhisperRuntimeFailureFormatter.IsFatalPlatformCompatibilityFailure(error))
+            {
+                return new ValidationCheck(
+                    "Model file state",
+                    ValidationCheckStatus.Failed,
+                    error);
+            }
+
             return new ValidationCheck(
                 "Model file state",
                 ValidationCheckStatus.Warning,
-                $"Model file is not loadable and will be re-downloaded during execution: {ex.Message}");
+                $"Model file is not loadable and will be re-downloaded during execution: {error}");
         }
     }
 

@@ -172,6 +172,17 @@
   </ItemGroup>
 
   <Target
+    Name="BuildDesktopCliBridge"
+    BeforeTargets="Build"
+    Condition="'$(TargetFramework)' == 'net9.0-maccatalyst'">
+    <MSBuild
+      Projects="$(MSBuildProjectDirectory)/../VoxFlow.Cli/VoxFlow.Cli.csproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration);TargetFramework=net9.0"
+      RemoveProperties="RuntimeIdentifier;SelfContained;UseMaui;TargetFrameworks;SupportedOSPlatformVersion;ValidateXcodeVersion" />
+  </Target>
+
+  <Target
     Name="FixWhisperDylibInstallNames"
     AfterTargets="_PostProcessAppBundle"
     BeforeTargets="Codesign"

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
@@ -40,7 +41,13 @@ public class AppViewModel : INotifyPropertyChanged
     public ValidationResult? ValidationResult
     {
         get => _validationResult;
-        private set { _validationResult = value; OnPropertyChanged(); }
+        private set
+        {
+            _validationResult = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasBlockingValidationErrors));
+            OnPropertyChanged(nameof(BlockingValidationMessage));
+        }
     }
 
     public TranscribeFileResult? TranscriptionResult
@@ -60,6 +67,16 @@ public class AppViewModel : INotifyPropertyChanged
         get => _errorMessage;
         private set { _errorMessage = value; OnPropertyChanged(); }
     }
+
+    public bool HasBlockingValidationErrors => ValidationResult?.CanStart == false;
+
+    public string? BlockingValidationMessage => ValidationResult?.Checks is null
+        ? null
+        : string.Join(
+            "; ",
+            ValidationResult.Checks
+                .Where(check => check.Status == ValidationCheckStatus.Failed)
+                .Select(check => check.Details));
 
     public string? CurrentFileName => _lastFilePath is not null ? Path.GetFileName(_lastFilePath) : null;
 

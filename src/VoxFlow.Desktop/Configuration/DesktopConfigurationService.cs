@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
+using VoxFlow.Desktop.Services;
 
 namespace VoxFlow.Desktop.Configuration;
 
@@ -25,17 +26,9 @@ public sealed class DesktopConfigurationService : IConfigurationService
 
     public Task<TranscriptionOptions> LoadAsync(string? configurationPath = null)
     {
-        Directory.CreateDirectory(AppSupportDir);
-
-        var bundledPath = ResolveBundledConfigPath(AppContext.BaseDirectory);
-
-        var merged = MergeJsonFiles(bundledPath, UserConfigPath, configurationPath);
-        var normalized = NormalizeDesktopConfiguration(merged);
-
-        var tempPath = Path.Combine(Path.GetTempPath(), $"voxflow-merged-{Guid.NewGuid()}.json");
+        var tempPath = WriteMergedConfigurationSnapshot(configurationPath, applyDesktopRuntimeOverrides: true);
         try
         {
-            File.WriteAllText(tempPath, normalized);
             var options = TranscriptionOptions.LoadFromPath(tempPath);
             return Task.FromResult(options);
         }
@@ -43,6 +36,45 @@ public sealed class DesktopConfigurationService : IConfigurationService
         {
             try { File.Delete(tempPath); } catch { /* best-effort */ }
         }
+    }
+
+    public string WriteMergedConfigurationSnapshot(
+        string? configurationPath = null,
+        Action<JsonObject>? mutateTranscription = null,
+        bool applyDesktopRuntimeOverrides = false)
+    {
+        Directory.CreateDirectory(AppSupportDir);
+
+        var bundledPath = ResolveBundledConfigPath(AppContext.BaseDirectory);
+        var merged = MergeJsonFiles(bundledPath, UserConfigPath, configurationPath);
+        var normalized = NormalizeDesktopConfiguration(merged);
+        var root = JsonNode.Parse(normalized)?.AsObject()
+            ?? throw new InvalidOperationException("Merged desktop configuration is not a JSON object.");
+        var transcription = root["transcription"]?.AsObject()
+            ?? throw new InvalidOperationException("Merged desktop configuration is missing the transcription section.");
+
+        if (applyDesktopRuntimeOverrides && DesktopCliSupport.ShouldUseCliBridge())
+        {
+            ApplyCliBridgeCompatibilityOverrides(transcription);
+        }
+
+        mutateTranscription?.Invoke(transcription);
+
+        var tempPath = Path.Combine(Path.GetTempPath(), $"voxflow-merged-{Guid.NewGuid():N}.json");
+        File.WriteAllText(tempPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        return tempPath;
+    }
+
+    private static void ApplyCliBridgeCompatibilityOverrides(JsonObject transcription)
+    {
+        if (transcription["startupValidation"] is not JsonObject startupValidation)
+        {
+            return;
+        }
+
+        startupValidation["checkModelLoadability"] = false;
+        startupValidation["checkWhisperRuntime"] = false;
+        startupValidation["checkLanguageSupport"] = false;
     }
 
     public IReadOnlyList<SupportedLanguage> GetSupportedLanguages(string? configurationPath = null)
