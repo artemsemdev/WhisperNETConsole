@@ -46,14 +46,19 @@
         try
         {
             var filePath = await MacFilePicker.PickAudioFileAsync();
-            if (!string.IsNullOrWhiteSpace(filePath))
+            if (string.IsNullOrWhiteSpace(filePath))
             {
-                await OnFileSelected.InvokeAsync(filePath);
+                System.Diagnostics.Debug.WriteLine("[DropZone] File picker returned null or empty path.");
+                return;
             }
+
+            System.Diagnostics.Debug.WriteLine($"[DropZone] File selected: {filePath}");
+            await OnFileSelected.InvokeAsync(filePath);
         }
         catch (Exception ex)
         {
             _selectionError = $"File picker failed: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine($"[DropZone] Exception: {ex}");
         }
     }
 

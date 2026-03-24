@@ -73,6 +73,7 @@ public class AppViewModel : INotifyPropertyChanged
 
     public async Task TranscribeFileAsync(string filePath)
     {
+        System.Diagnostics.Debug.WriteLine($"[AppViewModel] TranscribeFileAsync started: {filePath}");
         _lastFilePath = filePath;
         OnPropertyChanged(nameof(CurrentFileName));
         CurrentState = AppState.Running;
@@ -87,8 +88,18 @@ public class AppViewModel : INotifyPropertyChanged
             if (!TranscriptionResult.Success)
                 ErrorMessage = string.Join("; ", TranscriptionResult.Warnings);
         }
-        catch (OperationCanceledException) { CurrentState = AppState.Ready; }
-        catch (Exception ex) { ErrorMessage = ex.Message; CurrentState = AppState.Failed; }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine("[AppViewModel] Transcription cancelled.");
+            CurrentState = AppState.Ready;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AppViewModel] Transcription error: {ex}");
+            ErrorMessage = ex.Message;
+            CurrentState = AppState.Failed;
+        }
+        System.Diagnostics.Debug.WriteLine($"[AppViewModel] TranscribeFileAsync finished. State={CurrentState}");
     }
 
     public async Task RetryAsync()
