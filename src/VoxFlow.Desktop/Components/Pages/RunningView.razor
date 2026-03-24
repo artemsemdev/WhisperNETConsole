@@ -1,0 +1,48 @@
+@inject AppViewModel ViewModel
+
+<div class="text-center">
+    <h2>Transcribing...</h2>
+
+    @if (ViewModel.CurrentProgress is not null)
+    {
+        <p class="text-secondary mt-2">@ViewModel.CurrentProgress.Stage</p>
+
+        <div class="progress-container mt-4">
+            <div class="progress-track">
+                <div class="progress-bar"
+                     style="width: @($"{ViewModel.CurrentProgress.PercentComplete:F0}%")">
+                </div>
+            </div>
+            <div class="progress-label">
+                <span>@ViewModel.CurrentProgress.Message</span>
+                <span>@FormatElapsed(ViewModel.CurrentProgress.Elapsed)</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ViewModel.CurrentProgress.CurrentLanguage))
+        {
+            <p class="text-muted mt-2">Language: @ViewModel.CurrentProgress.CurrentLanguage</p>
+        }
+    }
+    else
+    {
+        <div class="mt-4">
+            <div class="spinner spinner-lg"></div>
+        </div>
+    }
+</div>
+
+<div class="btn-group mt-6">
+    <button class="btn btn-danger btn-sm" @onclick="ViewModel.CancelTranscription">
+        Cancel
+    </button>
+</div>
+
+@code {
+    private static string FormatElapsed(TimeSpan elapsed)
+    {
+        if (elapsed.TotalHours >= 1)
+            return elapsed.ToString(@"h\:mm\:ss");
+        return elapsed.ToString(@"m\:ss");
+    }
+}

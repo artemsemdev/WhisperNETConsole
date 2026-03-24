@@ -1,0 +1,29 @@
+@inject AppViewModel ViewModel
+
+<div class="text-center">
+    <h2>Transcription Failed</h2>
+</div>
+
+@if (!string.IsNullOrEmpty(ViewModel.ErrorMessage))
+{
+    <div class="message message-error mt-4">
+        <span class="message-icon">\u2717</span>
+        <span>@ViewModel.ErrorMessage</span>
+    </div>
+}
+
+<div class="btn-group mt-6">
+    <button class="btn btn-primary" @onclick="ViewModel.RetryAsync">
+        Retry
+    </button>
+    <button class="btn btn-secondary" @onclick="GoToReady">
+        Choose Different File
+    </button>
+</div>
+
+@code {
+    private async Task GoToReady()
+    {
+        await ViewModel.RevalidateAsync();
+    }
+}

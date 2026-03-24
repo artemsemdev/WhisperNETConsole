@@ -1,0 +1,17 @@
+@inject AppViewModel ViewModel
+
+<div class="text-center">
+    <h2>Ready to Transcribe</h2>
+    <p class="text-secondary mt-2">Drop an audio file or click browse to get started.</p>
+</div>
+
+<div class="mt-6">
+    <DropZone OnFileSelected="HandleFileSelected" Label="Drop audio file here" />
+</div>
+
+@code {
+    private async Task HandleFileSelected(string filePath)
+    {
+        await ViewModel.TranscribeFileAsync(filePath);
+    }
+}

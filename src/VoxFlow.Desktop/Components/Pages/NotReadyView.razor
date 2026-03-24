@@ -1,0 +1,80 @@
+@inject AppViewModel ViewModel
+
+<div class="text-center">
+    <h2>Environment Setup Required</h2>
+    <p class="text-secondary mt-2">Some checks did not pass. Please resolve the issues below.</p>
+</div>
+
+@if (ViewModel.ValidationResult is not null)
+{
+    <ul class="validation-checklist mt-4">
+        @foreach (var check in ViewModel.ValidationResult.Checks)
+        {
+            <li class="validation-item @GetItemClass(check.Status)">
+                <span class="validation-icon">@GetStatusIcon(check.Status)</span>
+                <span class="validation-label">@check.Name</span>
+                <span class="validation-detail">@check.Details</span>
+            </li>
+        }
+    </ul>
+}
+
+<div class="btn-group mt-6">
+    @if (HasFailedCheck("ffmpeg"))
+    {
+        <a href="https://ffmpeg.org/download.html"
+           target="_blank"
+           class="btn btn-secondary btn-sm">
+            Install ffmpeg
+        </a>
+    }
+
+    @if (HasFailedCheck("model"))
+    {
+        <button class="btn btn-primary btn-sm"
+                @onclick="ViewModel.DownloadModelAsync"
+                disabled="@ViewModel.IsDownloadingModel">
+            @if (ViewModel.IsDownloadingModel)
+            {
+                <span class="spinner"></span>
+                <span>Downloading...</span>
+            }
+            else
+            {
+                <span>Download Model</span>
+            }
+        </button>
+    }
+
+    <button class="btn btn-secondary btn-sm" @onclick="ViewModel.RevalidateAsync">
+        Retry Validation
+    </button>
+</div>
+
+@code {
+    private static string GetItemClass(ValidationCheckStatus status) => status switch
+    {
+        ValidationCheckStatus.Passed => "valid",
+        ValidationCheckStatus.Warning => "valid",
+        ValidationCheckStatus.Failed => "invalid",
+        ValidationCheckStatus.Skipped => "pending",
+        _ => "pending"
+    };
+
+    private static string GetStatusIcon(ValidationCheckStatus status) => status switch
+    {
+        ValidationCheckStatus.Passed => "\u2713",
+        ValidationCheckStatus.Warning => "\u26A0",
+        ValidationCheckStatus.Failed => "\u2717",
+        ValidationCheckStatus.Skipped => "\u2014",
+        _ => "\u2014"
+    };
+
+    private bool HasFailedCheck(string nameFragment)
+    {
+        if (ViewModel.ValidationResult is null) return false;
+        return ViewModel.ValidationResult.Checks.Any(c =>
+            c.Status == ValidationCheckStatus.Failed &&
+            c.Name.Contains(nameFragment, StringComparison.OrdinalIgnoreCase));
+    }
+}

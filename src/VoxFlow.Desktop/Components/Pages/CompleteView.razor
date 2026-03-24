@@ -1,0 +1,102 @@
+@inject AppViewModel ViewModel
+
+<div class="text-center">
+    <h2>Transcription Complete</h2>
+</div>
+
+@if (ViewModel.TranscriptionResult is not null)
+{
+    var result = ViewModel.TranscriptionResult;
+
+    <div class="message message-success mt-4">
+        <span class="message-icon">\u2713</span>
+        <span>Finished in @FormatDuration(result.Duration)</span>
+    </div>
+
+    <div class="validation-checklist mt-4">
+        <div class="validation-item valid">
+            <span class="validation-icon">\uD83C\uDF10</span>
+            <span class="validation-label">Language</span>
+            <span class="validation-detail">@(result.DetectedLanguage ?? "Unknown")</span>
+        </div>
+        <div class="validation-item valid">
+            <span class="validation-icon">\u2713</span>
+            <span class="validation-label">Accepted Segments</span>
+            <span class="validation-detail">@result.AcceptedSegmentCount</span>
+        </div>
+        @if (result.SkippedSegmentCount > 0)
+        {
+            <div class="validation-item pending">
+                <span class="validation-icon">\u2014</span>
+                <span class="validation-label">Filtered Segments</span>
+                <span class="validation-detail">@result.SkippedSegmentCount</span>
+            </div>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(result.TranscriptPreview))
+    {
+        <div class="transcript-preview mt-4">@result.TranscriptPreview</div>
+    }
+
+    @if (!string.IsNullOrEmpty(result.ResultFilePath))
+    {
+        <p class="text-muted mt-2" title="@result.ResultFilePath">
+            Output: @TruncatePath(result.ResultFilePath)
+        </p>
+    }
+
+    @if (result.Warnings.Count > 0)
+    {
+        <div class="message message-warning mt-4">
+            <span class="message-icon">\u26A0</span>
+            <span>@string.Join("; ", result.Warnings)</span>
+        </div>
+    }
+}
+
+<div class="btn-group mt-4">
+    <button class="btn btn-secondary btn-sm" @onclick="OpenFolder">
+        Open Folder
+    </button>
+    <button class="btn btn-secondary btn-sm" @onclick="CopyTranscript">
+        Copy Transcript
+    </button>
+</div>
+
+<div class="mt-6">
+    <DropZone OnFileSelected="HandleFileSelected" Label="Drop another file to continue" />
+</div>
+
+@code {
+    private async Task HandleFileSelected(string filePath)
+    {
+        await ViewModel.TranscribeFileAsync(filePath);
+    }
+
+    private async Task OpenFolder()
+    {
+        // JS interop for opening the folder will be wired in Task 17
+        await Task.CompletedTask;
+    }
+
+    private async Task CopyTranscript()
+    {
+        // JS interop for clipboard will be wired in Task 17
+        await Task.CompletedTask;
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalMinutes >= 1)
+            return $"{duration.Minutes}m {duration.Seconds}s";
+        return $"{duration.TotalSeconds:F1}s";
+    }
+
+    private static string TruncatePath(string path)
+    {
+        const int maxLength = 60;
+        if (path.Length <= maxLength) return path;
+        return "..." + path[^(maxLength - 3)..];
+    }
+}
