@@ -104,6 +104,7 @@ internal sealed class LanguageSelectionService : ILanguageSelectionService
         WhisperFactory factory,
         TranscriptionOptions options)
     {
+        // Whisper requires an initial language when building the processor, even though each candidate pass swaps it immediately.
         var builder = factory.CreateBuilder()
             .WithLanguage(options.SupportedLanguages[0].Code)
             .WithProbabilities()

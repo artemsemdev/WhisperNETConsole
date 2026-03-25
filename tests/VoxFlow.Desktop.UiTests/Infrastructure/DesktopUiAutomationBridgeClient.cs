@@ -95,6 +95,7 @@ internal sealed class DesktopUiAutomationBridgeClient : IAsyncDisposable
         var responsePath = GetResponseFilePath(_sessionId, commandId);
 
         var commandJson = JsonSerializer.Serialize(command, JsonOptions);
+        // Publish the request atomically so the desktop app never observes a partially written command file.
         await File.WriteAllTextAsync(temporaryRequestPath, commandJson, cancellationToken);
         File.Move(temporaryRequestPath, requestPath, overwrite: true);
 

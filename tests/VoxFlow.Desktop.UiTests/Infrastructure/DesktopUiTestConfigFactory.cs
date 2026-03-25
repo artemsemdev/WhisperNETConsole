@@ -23,6 +23,7 @@ internal static class DesktopUiTestConfigFactory
                         ["displayName"] = "English"
                     }
                 },
+                // UI tests exercise screen flow, so keep only the checks that are deterministic across machines and CI.
                 ["startupValidation"] = new JsonObject
                 {
                     ["enabled"] = true,

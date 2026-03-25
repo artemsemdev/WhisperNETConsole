@@ -25,6 +25,7 @@ public sealed class DesktopEndToEndTests
             "happy-path-process-single-file",
             async (session, cancellationToken) =>
             {
+                // Lengthen the sample so the app stays in the running state long enough for a reliable assertion.
                 var longAudioPath = await session.CreateLongAudioAsync(RepositoryLayout.InputFileOne, cancellationToken);
 
                 await session.App.WaitForReadyAsync(cancellationToken);
@@ -123,6 +124,7 @@ public sealed class DesktopEndToEndTests
         catch (Exception ex)
         {
             UiProgressLogger.Write($"Scenario failed: {scenarioName} ({ex.GetType().Name}: {ex.Message})");
+            // Replace the raw exception with artifact locations so failed UI runs are diagnosable after teardown.
             var diagnostics = await session.CaptureFailureDiagnosticsAsync(ex, CancellationToken.None);
             throw new XunitException(diagnostics);
         }

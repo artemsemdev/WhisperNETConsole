@@ -55,7 +55,7 @@ public sealed class TranscriptionOptions
         ConfigurationPath = configurationPath;
         IsBatchMode = string.Equals(configuration.ProcessingMode, "batch", StringComparison.OrdinalIgnoreCase);
 
-        // Single-file paths are only required in single-file mode.
+        // Batch mode resolves per-file paths later during discovery, so single-file paths stay optional here.
         InputFilePath = IsBatchMode ? (configuration.InputFilePath?.Trim() ?? string.Empty) : RequireValue(configuration.InputFilePath, nameof(configuration.InputFilePath));
         WavFilePath = IsBatchMode ? (configuration.WavFilePath?.Trim() ?? string.Empty) : RequireValue(configuration.WavFilePath, nameof(configuration.WavFilePath));
         ResultFilePath = IsBatchMode ? (configuration.ResultFilePath?.Trim() ?? string.Empty) : RequireValue(configuration.ResultFilePath, nameof(configuration.ResultFilePath));
@@ -152,6 +152,7 @@ public sealed class TranscriptionOptions
         var configuredPath = Environment.GetEnvironmentVariable("TRANSCRIPTION_SETTINGS_PATH");
         if (!string.IsNullOrWhiteSpace(configuredPath))
         {
+            // Test runs, the desktop bridge, and custom launchers can redirect configuration without copying appsettings.json.
             return Path.GetFullPath(configuredPath);
         }
 
@@ -276,6 +277,7 @@ public sealed class TranscriptionOptions
         var tempDirectory = string.IsNullOrWhiteSpace(configuration.TempDirectory)
             ? Path.GetTempPath()
             : configuration.TempDirectory.Trim();
+        // Keep the default relative path so callers can choose whether to anchor it to the current workspace or another root.
         var summaryFilePath = string.IsNullOrWhiteSpace(configuration.SummaryFilePath)
             ? "batch-summary.txt"
             : configuration.SummaryFilePath.Trim();

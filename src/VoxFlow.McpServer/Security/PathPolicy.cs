@@ -115,6 +115,7 @@ internal sealed class PathPolicy : IPathPolicy
             .Select(r =>
             {
                 var normalized = Path.GetFullPath(r);
+                // Force a trailing separator so `/allowed-audio-2` does not satisfy a root of `/allowed-audio`.
                 return normalized.EndsWith(Path.DirectorySeparatorChar)
                     ? normalized
                     : normalized + Path.DirectorySeparatorChar;

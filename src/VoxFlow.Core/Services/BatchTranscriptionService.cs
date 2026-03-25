@@ -54,6 +54,7 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
             var validation = await _validationService.ValidateAsync(options, cancellationToken);
             if (!validation.CanStart)
             {
+                // Abort before discovery so startup failures do not get mixed into per-file batch results.
                 return new BatchTranscribeResult(0, 0, 0, 0, null, totalStopwatch.Elapsed, new List<BatchFileResult>());
             }
         }
@@ -115,7 +116,7 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
             }
         }
 
-        // 5. Write summary — convert BatchFileResult → FileProcessingResult for summary writer
+        // The summary writer already speaks the shared file-processing model, so project the batch-specific results once here.
         var fileResults = results.Select(r => new FileProcessingResult(
             r.InputPath, r.OutputPath,
             r.Status switch { "Success" => FileProcessingStatus.Success, "Failed" => FileProcessingStatus.Failed, _ => FileProcessingStatus.Skipped },

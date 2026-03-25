@@ -43,6 +43,7 @@ internal sealed class DesktopUiTestSession : IAsyncDisposable
         UiProgressLogger.Write($"Scenario artifacts directory: {artifacts.RootDirectory}");
         var userConfigScope = new DesktopUserConfigScope();
         UiProgressLogger.Write("Writing isolated Desktop user config override.");
+        // These tests launch the real app bundle, so each scenario gets its own config override to avoid cross-test leakage.
         await userConfigScope.WriteAsync(DesktopUiTestConfigFactory.CreateValidSingleFileOverride(artifacts));
         UiProgressLogger.Write("Preparing Desktop UI automation bridge session.");
         var bridge = DesktopUiAutomationBridgeClient.CreateAndPrepare();

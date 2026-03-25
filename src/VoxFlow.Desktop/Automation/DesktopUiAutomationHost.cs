@@ -132,6 +132,7 @@ internal sealed class DesktopUiAutomationHost : IAsyncDisposable
                 return;
             }
 
+            // The bridge is only ready once the native web view exists; the window can appear before the DOM is interactive.
             var readyJson = JsonSerializer.Serialize(
                 new DesktopUiAutomationSession(_sessionId, DateTimeOffset.UtcNow),
                 JsonOptions);
@@ -204,6 +205,7 @@ internal sealed class DesktopUiAutomationHost : IAsyncDisposable
         var responsePath = DesktopUiAutomationPaths.ResponseFilePath(response.SessionId, response.CommandId);
         var temporaryPath = $"{responsePath}.tmp";
         var json = JsonSerializer.Serialize(response, JsonOptions);
+        // Write responses atomically so the polling test client never reads a half-written payload.
         await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
         File.Move(temporaryPath, responsePath, overwrite: true);
     }

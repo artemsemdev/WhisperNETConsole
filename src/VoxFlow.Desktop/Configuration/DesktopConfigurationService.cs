@@ -46,6 +46,7 @@ public sealed class DesktopConfigurationService : IConfigurationService
         Directory.CreateDirectory(AppSupportDir);
 
         var bundledPath = ResolveBundledConfigPath(AppContext.BaseDirectory);
+        // Materialize a merged temp file so the core configuration pipeline can stay file-based across CLI, desktop, and tests.
         var merged = MergeJsonFiles(bundledPath, UserConfigPath, configurationPath);
         var normalized = NormalizeDesktopConfiguration(merged);
         var root = JsonNode.Parse(normalized)?.AsObject()
@@ -72,6 +73,7 @@ public sealed class DesktopConfigurationService : IConfigurationService
             return;
         }
 
+        // The CLI bridge validates in a separate process, so in-process native runtime probes would fail for the wrong reason here.
         startupValidation["checkModelLoadability"] = false;
         startupValidation["checkWhisperRuntime"] = false;
         startupValidation["checkLanguageSupport"] = false;

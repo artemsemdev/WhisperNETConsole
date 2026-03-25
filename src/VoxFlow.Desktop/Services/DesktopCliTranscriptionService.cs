@@ -31,6 +31,7 @@ internal sealed class DesktopCliTranscriptionService : ITranscriptionService
         }
 
         var stopwatch = Stopwatch.StartNew();
+        // Run the CLI against a disposable merged snapshot so per-request paths never mutate the user's settings file.
         var configurationPath = _configurationService.WriteMergedConfigurationSnapshot(
             request.ConfigurationPath,
             transcription =>
@@ -140,6 +141,7 @@ internal sealed class DesktopCliTranscriptionService : ITranscriptionService
 
         if (!string.IsNullOrWhiteSpace(builtCliAssembly))
         {
+            // Prefer an existing build to avoid paying a `dotnet run` rebuild on every desktop transcription.
             startInfo.ArgumentList.Add("exec");
             startInfo.ArgumentList.Add(builtCliAssembly);
         }

@@ -26,6 +26,7 @@ internal sealed class ModelService : IModelService
         TranscriptionOptions options,
         CancellationToken cancellationToken = default)
     {
+        // Cache by model path so repeated transcriptions reuse the same native model load, but config changes still force a reload.
         if (_cachedFactory != null && _cachedModelPath == options.ModelFilePath)
             return _cachedFactory;
 
