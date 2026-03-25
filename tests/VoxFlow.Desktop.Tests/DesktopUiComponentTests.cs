@@ -196,7 +196,7 @@ public sealed class DesktopUiComponentTests
         Assert.Contains("demo.wav", rendered.TextContent);
     }
 
-    [Theory]
+    [DesktopRealAudioTheory]
     [InlineData("Test 1.m4a")]
     [InlineData("Test 2.m4a")]
     public async Task Routes_BrowseFile_WithRealAudio_CompletesTranscription(string fileName)
@@ -245,7 +245,7 @@ public sealed class DesktopUiComponentTests
         }
     }
 
-    [Fact]
+    [DesktopRealAudioFact]
     public async Task ReadyView_BrowseFile_WithRealAudio_CompletesTranscription()
     {
         var repositoryRoot = Path.GetDirectoryName(ViewModelFactory.ResolveRootSettingsPath())
