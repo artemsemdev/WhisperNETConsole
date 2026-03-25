@@ -77,6 +77,9 @@ jobs:
 
       - name: Restore desktop projects
         run: |
+          # Desktop builds the local CLI bridge as part of the Mac Catalyst build, so the CLI project
+          # must be restored here even though this job does not run the standalone CLI test suite.
+          dotnet restore src/VoxFlow.Cli/VoxFlow.Cli.csproj
           dotnet restore src/VoxFlow.Desktop/VoxFlow.Desktop.csproj
           dotnet restore tests/VoxFlow.Desktop.Tests/VoxFlow.Desktop.Tests.csproj
 
