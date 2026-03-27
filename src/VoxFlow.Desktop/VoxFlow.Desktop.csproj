@@ -32,6 +32,9 @@
     <RuntimeIdentifiers Condition="'$(RuntimeIdentifier)' == '' and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">maccatalyst-arm64</RuntimeIdentifiers>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'X64'">maccatalyst-x64</RuntimeIdentifier>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture)' == 'Arm64'">maccatalyst-arm64</RuntimeIdentifier>
+    <!-- Full linking produced an invalid Microsoft.MacCatalyst metadata token in published Intel apps.
+         Default to SDK-only linking unless a caller overrides MtouchLink explicitly. -->
+    <MtouchLink Condition="'$(MtouchLink)' == ''">SdkOnly</MtouchLink>
   </PropertyGroup>
 
   <ItemGroup>
@@ -201,7 +204,9 @@
       <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/*.dll" />
       <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/*.deps.json" />
       <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/*.runtimeconfig.json" />
-      <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/ggml-metal.metal" />
+      <BundledCliFiles
+        Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/ggml-metal.metal"
+        Condition="Exists('$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/ggml-metal.metal')" />
       <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/runtimes/macos-x64/**/*" />
       <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/runtimes/macos-arm64/**/*" />
     </ItemGroup>
