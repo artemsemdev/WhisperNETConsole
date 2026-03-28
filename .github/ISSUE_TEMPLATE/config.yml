@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/artemsemdev/WisperTestApp/security/policy
+    about: Review the security policy and report vulnerabilities privately.
+  - name: Setup and usage guide
+    url: https://github.com/artemsemdev/WisperTestApp/blob/master/SETUP.md
+    about: Check the setup guide before opening environment or installation issues.

@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible defect in VoxFlow
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This is not a private security report or sensitive data disclosure.
+          required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - CLI
+        - Desktop
+        - MCP Server
+        - Core library
+        - Build or packaging
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, architecture, .NET SDK version, and relevant tooling such as ffmpeg.
+      placeholder: macOS 15 arm64, .NET SDK 9.0.312, ffmpeg 7.1.1
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal, deterministic sequence.
+      placeholder: |
+        1. Run ...
+        2. Open ...
+        3. Select ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, stack traces, screenshots, or sample output
+      description: Redact private audio, transcripts, secrets, and absolute paths when necessary.
+      render: text

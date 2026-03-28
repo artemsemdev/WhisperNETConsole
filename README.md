@@ -55,5 +55,9 @@ The shared pipeline remains configuration loading, startup validation, ffmpeg-ba
 | [PRD.md](docs/product/PRD.md) | Product requirements document |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture decisions and system design |
 | [ROADMAP.md](docs/product/ROADMAP.md) | Feature implementation roadmap |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow, quality bar, and review expectations |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community behavior expectations and enforcement model |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting and supported-version policy |
+| [LICENSE](LICENSE) | MIT license for source and documentation |
 
 For technical setup, local development, and operations, please see [SETUP.md](SETUP.md).
