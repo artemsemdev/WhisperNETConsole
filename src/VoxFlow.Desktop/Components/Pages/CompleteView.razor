@@ -1,5 +1,6 @@
 @inject AppViewModel ViewModel
-@inject IJSRuntime JSRuntime
+@inject IResultActionService ResultActionService
+@implements IDisposable
 
 <div class="result-header" id="complete-screen" aria-label="Complete Screen">
     <div class="result-header-left">
@@ -64,6 +65,7 @@
     private bool _copied;
     private string? _actionError;
     private bool _isPreviewTruncated;
+    private CancellationTokenSource? _copiedResetCts;
 
     protected override void OnParametersSet()
     {
@@ -82,46 +84,71 @@
     private async Task OpenFolder()
     {
         _actionError = null;
+        _copied = false;
         var result = ViewModel.TranscriptionResult;
-        if (result is not null && !string.IsNullOrEmpty(result.ResultFilePath))
+        if (result is null || string.IsNullOrEmpty(result.ResultFilePath))
         {
-            var directory = Path.GetDirectoryName(result.ResultFilePath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                try
-                {
-                    await Launcher.Default.OpenAsync(directory);
-                }
-                catch (Exception ex)
-                {
-                    _actionError = $"Could not open folder: {ex.Message}";
-                }
-            }
+            _actionError = "Result location is unavailable.";
+            return;
+        }
+
+        try
+        {
+            await ResultActionService.OpenResultFolderAsync(result.ResultFilePath);
+        }
+        catch (Exception ex)
+        {
+            _actionError = $"Could not open folder: {ex.Message}";
         }
     }
 
     private async Task CopyTranscript()
     {
         _actionError = null;
+        _copied = false;
         var fullTranscript = ViewModel.GetFullTranscript();
-        if (!string.IsNullOrEmpty(fullTranscript))
+        if (string.IsNullOrWhiteSpace(fullTranscript))
         {
-            try
-            {
-                await JSRuntime.InvokeVoidAsync("voxFlowInterop.copyToClipboard", fullTranscript);
-                _copied = true;
-                StateHasChanged();
-
-                _ = Task.Delay(2000).ContinueWith(_ =>
-                {
-                    _copied = false;
-                    InvokeAsync(StateHasChanged);
-                });
-            }
-            catch (Exception ex)
-            {
-                _actionError = $"Could not copy to clipboard: {ex.Message}";
-            }
+            _actionError = "Transcript text is unavailable.";
+            return;
         }
+
+        try
+        {
+            await ResultActionService.CopyTextAsync(fullTranscript);
+            _copied = true;
+            ResetCopiedStateTimer();
+        }
+        catch (Exception ex)
+        {
+            _actionError = $"Could not copy to clipboard: {ex.Message}";
+        }
+    }
+
+    private void ResetCopiedStateTimer()
+    {
+        _copiedResetCts?.Cancel();
+        _copiedResetCts?.Dispose();
+        _copiedResetCts = new CancellationTokenSource();
+        _ = ResetCopiedStateAsync(_copiedResetCts.Token);
+    }
+
+    private async Task ResetCopiedStateAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            _copied = false;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public void Dispose()
+    {
+        _copiedResetCts?.Cancel();
+        _copiedResetCts?.Dispose();
     }
 }

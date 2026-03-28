@@ -40,5 +40,6 @@
     <Compile Include="..\..\src\VoxFlow.Desktop\Services\DesktopCliInvocation.cs" Link="Services\DesktopCliInvocation.cs" />
     <Compile Include="..\..\src\VoxFlow.Desktop\Services\DesktopCliSupport.cs" Link="Services\DesktopCliSupport.cs" />
     <Compile Include="..\..\src\VoxFlow.Desktop\Services\DesktopCliTranscriptionService.cs" Link="Services\DesktopCliTranscriptionService.cs" />
+    <Compile Include="..\..\src\VoxFlow.Desktop\Services\ResultActionService.cs" Link="Services\ResultActionService.cs" />
   </ItemGroup>
 </Project>

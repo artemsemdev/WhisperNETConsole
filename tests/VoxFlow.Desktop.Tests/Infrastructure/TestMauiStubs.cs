@@ -88,6 +88,19 @@ public sealed class Launcher
     }
 }
 
+public sealed class Clipboard
+{
+    public static Clipboard Default { get; set; } = new();
+
+    public List<string> CopiedTexts { get; } = [];
+
+    public Task SetTextAsync(string text)
+    {
+        CopiedTexts.Add(text);
+        return Task.CompletedTask;
+    }
+}
+
 public static class MainThread
 {
     public static Task<T> InvokeOnMainThreadAsync<T>(Func<Task<T>> callback)

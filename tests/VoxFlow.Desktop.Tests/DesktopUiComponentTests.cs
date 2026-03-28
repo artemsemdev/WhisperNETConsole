@@ -291,7 +291,7 @@ public sealed class DesktopUiComponentTests
     }
 
     [Fact]
-    public async Task CompleteView_CopyText_UsesClipboardInterop_AndUpdatesButton()
+    public async Task CompleteView_CopyText_UsesResultActionService_AndUpdatesButton()
     {
         await using var context = DesktopUiTestContext.Create();
         AppViewModelStateAccessor.SetState(
@@ -313,9 +313,7 @@ public sealed class DesktopUiComponentTests
             element => element.Name == "button" && element.TextContent == "Copy Text",
             "copy text button");
 
-        var invocation = Assert.Single(context.JsRuntime.Invocations);
-        Assert.Equal("voxFlowInterop.copyToClipboard", invocation.Identifier);
-        Assert.Equal("Clipboard text", Assert.Single(invocation.Arguments));
+        Assert.Equal(["Clipboard text"], context.ResultActionService.CopiedTexts);
         Assert.Contains("Copied!", rendered.TextContent);
     }
 
@@ -526,7 +524,7 @@ public sealed class DesktopUiComponentTests
     }
 
     [Fact]
-    public async Task CompleteView_OpenFolder_InvokesLauncherWithCorrectDirectory()
+    public async Task CompleteView_OpenFolder_UsesResultActionService_WithResultPath()
     {
         await using var context = DesktopUiTestContext.Create();
         AppViewModelStateAccessor.SetState(
@@ -548,9 +546,7 @@ public sealed class DesktopUiComponentTests
             element => element.Name == "button" && element.TextContent == "Open Folder",
             "open folder button");
 
-        var launcher = Launcher.Default;
-        var opened = Assert.Single(launcher.OpenedTargets);
-        Assert.Equal("/tmp/output", opened);
+        Assert.Equal(["/tmp/output/result.txt"], context.ResultActionService.OpenedResultPaths);
     }
 
     [Fact]
@@ -860,8 +856,7 @@ public sealed class DesktopUiComponentTests
             element => element.Name == "button" && element.TextContent == "Open Folder",
             "open folder button");
 
-        var launcher = Launcher.Default;
-        Assert.Empty(launcher.OpenedTargets);
+        Assert.Empty(context.ResultActionService.OpenedResultPaths);
     }
 
     [Fact]
@@ -888,7 +883,7 @@ public sealed class DesktopUiComponentTests
             element => element.Name == "button" && element.TextContent == "Copy Text",
             "copy text button");
 
-        Assert.Empty(context.JsRuntime.Invocations);
+        Assert.Empty(context.ResultActionService.CopiedTexts);
     }
 
     private static string WriteSingleFileConfig(string repositoryRoot, string tempDir, string inputPath)
