@@ -1,4 +1,5 @@
 @using VoxFlow.Desktop.Platform
+@inject IJSRuntime JS
 
 <div id="file-drop-zone"
      class="drop-zone @(IsDisabled ? "drop-zone-disabled" : string.Empty)"
@@ -9,15 +10,15 @@
      @onclick="BrowseFiles"
      @onkeydown="HandleKeyDown">
 
-    <div class="upload-icon">
+    <div class="file-icon">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="17 8 12 3 7 8"/>
             <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
     </div>
-    <span id="drop-zone-label" class="drop-label">@(Label ?? "No files added yet")</span>
-    <span class="drop-hint">Drop your M4A files here or <span class="drop-browse-link">browse</span> from your device.</span>
+    <span id="drop-zone-label" class="drop-label">@(Label ?? "No file selected")</span>
+    <span class="drop-hint">Choose an audio file to transcribe.</span>
     <button id="browse-files-button"
             class="btn btn-primary mt-4"
             aria-label="Browse Files"
@@ -28,6 +29,13 @@
         + Browse Files
     </button>
 </div>
+
+<InputFile id="@BrowserFileInputId"
+           class="drop-zone-file-input"
+           aria-hidden="true"
+           tabindex="-1"
+           accept=".m4a,.wav,.mp3,.aac,.flac,.ogg,.aif,.aiff,.mp4,.m4b,audio/*"
+           OnChange="HandleBrowserFilesSelected" />
 
 @if (!string.IsNullOrWhiteSpace(_selectionError))
 {
@@ -47,7 +55,19 @@
     [Parameter]
     public bool IsDisabled { get; set; }
 
+    private const string BrowserFileInputId = "file-drop-zone-input";
+    private const long MaxDroppedFileSizeBytes = 1024L * 1024L * 1024L;
     private string? _selectionError;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await JS.InvokeVoidAsync("voxFlowInterop.initDropZone", "file-drop-zone", BrowserFileInputId);
+    }
 
     private async Task BrowseFiles()
     {
@@ -75,6 +95,78 @@
             _selectionError = $"File picker failed: {ex.Message}";
             System.Diagnostics.Debug.WriteLine($"[DropZone] Exception: {ex}");
         }
+    }
+
+    private async Task HandleBrowserFilesSelected(InputFileChangeEventArgs args)
+    {
+        if (IsDisabled || args.FileCount == 0)
+        {
+            return;
+        }
+
+        _selectionError = null;
+
+        try
+        {
+            var file = args.File;
+            if (!IsSupportedAudioFile(file.Name))
+            {
+                _selectionError = $"Unsupported audio file: {file.Name}";
+                return;
+            }
+
+            var filePath = await SaveBrowserFileToTemporaryPathAsync(file);
+            System.Diagnostics.Debug.WriteLine($"[DropZone] Browser file selected: {filePath}");
+            await OnFileSelected.InvokeAsync(filePath);
+        }
+        catch (Exception ex)
+        {
+            _selectionError = $"File drop failed: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine($"[DropZone] Browser file drop failed: {ex}");
+        }
+    }
+
+    private static bool IsSupportedAudioFile(string fileName)
+    {
+        var extension = Path.GetExtension(fileName);
+        return extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".aac", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".flac", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".ogg", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".aif", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".aiff", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
+               extension.Equals(".m4b", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<string> SaveBrowserFileToTemporaryPathAsync(IBrowserFile file)
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"voxflow-drop-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+        var tempPath = Path.Combine(tempDirectory, SanitizeFileName(file.Name));
+
+        await using var source = file.OpenReadStream(MaxDroppedFileSizeBytes);
+        await using var target = File.Create(tempPath);
+        await source.CopyToAsync(target);
+        return tempPath;
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var safeFileName = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+        {
+            return "dropped-audio";
+        }
+
+        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        {
+            safeFileName = safeFileName.Replace(invalidChar, '_');
+        }
+
+        return safeFileName;
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs args)

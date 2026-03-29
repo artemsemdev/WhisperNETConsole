@@ -22,6 +22,7 @@ public static class MauiProgram
         builder.Services.AddVoxFlowCore();
         builder.Services.AddSingleton<DesktopConfigurationService>();
         builder.Services.AddSingleton<IConfigurationService>(sp => sp.GetRequiredService<DesktopConfigurationService>());
+        builder.Services.AddSingleton<IResultActionService, ResultActionService>();
         if (DesktopCliSupport.ShouldUseCliBridge())
         {
             builder.Services.AddSingleton<ITranscriptionService, DesktopCliTranscriptionService>();

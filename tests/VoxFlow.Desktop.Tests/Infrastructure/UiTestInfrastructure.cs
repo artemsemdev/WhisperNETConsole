@@ -11,6 +11,7 @@ using VoxFlow.Core.Configuration;
 using VoxFlow.Core.DependencyInjection;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
+using VoxFlow.Desktop.Services;
 using VoxFlow.Desktop.ViewModels;
 
 namespace VoxFlow.Desktop.Tests;
@@ -21,18 +22,21 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         TestRenderer renderer,
         AppViewModel viewModel,
         RecordingJsRuntime jsRuntime,
-        ITranscriptionService transcriptionService)
+        ITranscriptionService transcriptionService,
+        RecordingResultActionService resultActionService)
     {
         Renderer = renderer;
         ViewModel = viewModel;
         JsRuntime = jsRuntime;
         TranscriptionService = transcriptionService;
+        ResultActionService = resultActionService;
     }
 
     public TestRenderer Renderer { get; }
     public AppViewModel ViewModel { get; }
     public RecordingJsRuntime JsRuntime { get; }
     public ITranscriptionService TranscriptionService { get; }
+    public RecordingResultActionService ResultActionService { get; }
 
     public static DesktopUiTestContext Create(
         IConfigurationService? configurationService = null,
@@ -42,6 +46,7 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         VoxFlow.Desktop.Platform.MacFilePicker.Reset();
         FilePicker.Default = new FilePicker();
         Launcher.Default = new Launcher();
+        Clipboard.Default = new Clipboard();
 
         var options = TranscriptionOptions.LoadFromPath(ViewModelFactory.ResolveRootSettingsPath());
         var config = configurationService ?? new DelegateConfigurationService(_ => Task.FromResult(options));
@@ -50,6 +55,7 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         var transcription = transcriptionService ?? new DelegateTranscriptionService(
             (request, _, _) => Task.FromResult(TestTranscriptionFactory.Create(success: true, path: request.InputPath)));
         var jsRuntime = new RecordingJsRuntime();
+        var resultActionService = new RecordingResultActionService();
 
         var viewModel = new AppViewModel(transcription, validation, config);
 
@@ -57,9 +63,10 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         services.AddLogging();
         services.AddSingleton<IJSRuntime>(jsRuntime);
         services.AddSingleton(viewModel);
+        services.AddSingleton<IResultActionService>(resultActionService);
 
         var renderer = new TestRenderer(services.BuildServiceProvider());
-        return new DesktopUiTestContext(renderer, viewModel, jsRuntime, transcription);
+        return new DesktopUiTestContext(renderer, viewModel, jsRuntime, transcription, resultActionService);
     }
 
     public static DesktopUiTestContext CreateWithRealCore(string configurationPath)
@@ -67,6 +74,7 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         VoxFlow.Desktop.Platform.MacFilePicker.Reset();
         FilePicker.Default = new FilePicker();
         Launcher.Default = new Launcher();
+        Clipboard.Default = new Clipboard();
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -74,6 +82,8 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         services.AddVoxFlowCore();
         services.AddSingleton<IConfigurationService>(new FixedConfigurationService(configurationPath));
         services.AddSingleton<AppViewModel>();
+        var resultActionService = new RecordingResultActionService();
+        services.AddSingleton<IResultActionService>(resultActionService);
 
         var provider = services.BuildServiceProvider();
         var renderer = new TestRenderer(provider);
@@ -82,7 +92,8 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
             renderer,
             provider.GetRequiredService<AppViewModel>(),
             (RecordingJsRuntime)provider.GetRequiredService<IJSRuntime>(),
-            provider.GetRequiredService<ITranscriptionService>());
+            provider.GetRequiredService<ITranscriptionService>(),
+            resultActionService);
     }
 
     public Task<RenderedComponent<TComponent>> RenderAsync<TComponent>()
@@ -96,6 +107,41 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Renderer.DisposeAsync();
+    }
+}
+
+internal sealed class RecordingResultActionService : IResultActionService
+{
+    public List<string> CopiedTexts { get; } = [];
+
+    public List<string> OpenedResultPaths { get; } = [];
+
+    public Exception? CopyException { get; set; }
+
+    public Exception? OpenFolderException { get; set; }
+
+    public Task CopyTextAsync(string text, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (CopyException is not null)
+        {
+            throw CopyException;
+        }
+
+        CopiedTexts.Add(text);
+        return Task.CompletedTask;
+    }
+
+    public Task OpenResultFolderAsync(string resultFilePath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (OpenFolderException is not null)
+        {
+            throw OpenFolderException;
+        }
+
+        OpenedResultPaths.Add(resultFilePath);
+        return Task.CompletedTask;
     }
 }
 

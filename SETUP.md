@@ -348,10 +348,11 @@ Current Desktop flow:
 - App startup runs through `Routes.razor`, loads a merged Desktop config, and validates the resolved options before the main shell renders
 - The main UI flow is driven by `AppViewModel` state: `Ready`, `Running`, `Failed`, `Complete`
 - `ReadyView` shows a blocking validation banner only when startup validation contains failures; `Browse Files` and the `DropZone` surface are disabled in that state
-- The intended file-entry paths are native drag-and-drop and `Browse Files`; current end-to-end automation covers the `Browse Files` path against the real macOS Open dialog
+- Supported file-entry paths are `Browse Files` and the visible `DropZone` drag-and-drop surface; in Blazor Hybrid, dropped files are staged into a temporary local working file before transcription while the UI keeps the original file name visible
+- Current end-to-end automation covers the `Browse Files` path against the real macOS Open dialog; drag-and-drop still requires manual verification against the built `.app`
 - Current UI scope is single-file transcription
 - `RunningView` shows progress stage, message, percentage, elapsed time, and current language when available
-- `CompleteView` supports opening the output folder and copying the transcript preview
+- `CompleteView` supports opening the output folder and copying the full transcript text
 - `FailedView` supports retrying the same file or returning to the ready screen
 - Intel Mac Catalyst uses `DesktopCliTranscriptionService` to spawn the local CLI host with a merged temp config; Apple Silicon keeps transcription in-process
 
@@ -434,6 +435,36 @@ dotnet test tests/VoxFlow.Cli.Tests/VoxFlow.Cli.Tests.csproj --no-restore
 dotnet test tests/VoxFlow.McpServer.Tests/VoxFlow.McpServer.Tests.csproj --no-restore
 dotnet test tests/VoxFlow.Desktop.Tests/VoxFlow.Desktop.Tests.csproj --no-restore
 ./scripts/run-desktop-ui-tests.sh --filter HappyPath_UserSelectsFile_SeesRunningState_AndGetsResult
+```
+
+### Per-Host Smoke Routines
+
+**CLI smoke:**
+
+```bash
+cp appsettings.example.json appsettings.local.json
+# Edit appsettings.local.json: set processingMode to single, inputFilePath to a real audio file,
+# set wavFilePath and resultFilePath to writable locations, set modelFilePath.
+TRANSCRIPTION_SETTINGS_PATH=$PWD/appsettings.local.json dotnet run --project src/VoxFlow.Cli/VoxFlow.Cli.csproj
+# Verify: exit code 0, result file exists and contains timestamped transcript lines.
+```
+
+**Desktop smoke:**
+
+```bash
+dotnet build src/VoxFlow.Desktop/VoxFlow.Desktop.csproj -f net9.0-maccatalyst --no-restore
+dotnet run --project src/VoxFlow.Desktop/VoxFlow.Desktop.csproj -f net9.0-maccatalyst
+# Verify: app launches, Ready screen shows "Audio Transcription".
+# Click Browse Files, select an audio file, verify Running screen shows progress,
+# verify Complete screen shows transcript preview and actions.
+```
+
+**MCP smoke:**
+
+```bash
+TRANSCRIPTION_SETTINGS_PATH=$PWD/appsettings.json dotnet run --project src/VoxFlow.McpServer/VoxFlow.McpServer.csproj
+# Verify: the server starts on stdio without errors on stderr.
+# Send a JSON-RPC initialize request on stdin to confirm the server responds.
 ```
 
 Most recent Desktop E2E baseline:

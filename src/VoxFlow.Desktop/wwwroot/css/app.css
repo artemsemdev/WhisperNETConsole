@@ -141,6 +141,14 @@ html, body {
     color: var(--text-muted);
 }
 
+.drop-zone-file-input {
+    position: fixed;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* ---------- Progress Bar ---------- */
 .progress-container {
     width: 100%;
@@ -162,6 +170,14 @@ html, body {
     border-radius: 3px;
     transition: width 300ms ease-out;
     position: relative;
+}
+
+.progress-percent {
+    display: block;
+    text-align: right;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
 }
 
 .progress-bar::after {
@@ -441,8 +457,8 @@ button {
     letter-spacing: -0.5px;
 }
 
-/* ---------- Upload Icon ---------- */
-.upload-icon {
+/* ---------- File Icon ---------- */
+.file-icon {
     width: 64px;
     height: 64px;
     margin: 0 auto 16px;
