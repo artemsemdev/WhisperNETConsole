@@ -12,6 +12,14 @@ flowchart LR
         iConfig["IConfigurationService"]
         iBatch["IBatchTranscriptionService"]
         iReader["ITranscriptReader"]
+        iAudioConversion["IAudioConversionService"]
+        iModel["IModelService"]
+        iWavLoader["IWavAudioLoader"]
+        iLangSelection["ILanguageSelectionService"]
+        iFilter["ITranscriptionFilter"]
+        iOutput["IOutputWriter"]
+        iDiscovery["IFileDiscoveryService"]
+        iBatchSummary["IBatchSummaryWriter"]
         addcore["AddVoxFlowCore()"]
 
         config["TranscriptionOptions"]
@@ -29,11 +37,14 @@ flowchart LR
     subgraph Cli["VoxFlow.Cli"]
         cli_program["Program.cs"]
         cli_progress["CliProgressHandler"]
+        cli_reporter["ConsoleValidationReporter"]
     end
 
     subgraph Mcp["VoxFlow.McpServer"]
         mcp_program["Program.cs"]
         mcp_tools["WhisperMcpTools"]
+        mcp_resource_tools["WhisperMcpResourceTools"]
+        mcp_prompts["WhisperMcpPrompts"]
         mcp_pathpolicy["PathPolicy"]
     end
 
@@ -43,6 +54,10 @@ flowchart LR
         desktop_vm["AppViewModel"]
         desktop_config["DesktopConfigurationService"]
         desktop_bridge["DesktopCliTranscriptionService"]
+        desktop_progress["BlazorProgressHandler"]
+        desktop_actions["ResultActionService"]
+        desktop_picker["MacFilePicker"]
+        desktop_diagnostics["DesktopDiagnostics"]
         desktop_pages["ReadyView / RunningView / FailedView / CompleteView / DropZone"]
     end
 
@@ -58,9 +73,15 @@ flowchart LR
 
     cli_program --> iTranscription
     cli_program --> iValidation
+    cli_program --> iBatch
     mcp_tools --> iTranscription
+    mcp_tools --> iBatch
     mcp_tools --> iValidation
+    mcp_tools --> iModel
+    mcp_tools --> iConfig
+    mcp_tools --> iReader
     mcp_tools --> mcp_pathpolicy
+    mcp_resource_tools --> iConfig
     desktop_routes --> desktop_vm
     desktop_layout --> desktop_pages
     desktop_vm --> iValidation
@@ -69,6 +90,8 @@ flowchart LR
     desktop_vm --> desktop_bridge
     desktop_vm --> desktop_config
     desktop_pages --> desktop_vm
+    desktop_pages --> desktop_actions
+    desktop_pages --> desktop_picker
 
     iTranscription --> convert
     iTranscription --> modelsvc
@@ -106,10 +129,20 @@ flowchart LR
 | Interface | Responsibility |
 |-----------|---------------|
 | `ITranscriptionService` | Orchestrate single-file transcription pipeline (convert, model, load, infer, filter, write) |
-| `IValidationService` | Run preflight checks and return structured validation reports |
-| `IConfigurationService` | Load and provide immutable runtime configuration |
 | `IBatchTranscriptionService` | Orchestrate batch file processing with error isolation and summary |
+| `IValidationService` | Run preflight checks and return structured validation reports |
+| `IConfigurationService` | Load and provide immutable runtime configuration; expose supported language list |
 | `ITranscriptReader` | Read previously produced transcript files |
+| `IAudioConversionService` | Convert input audio to WAV via ffmpeg; validate ffmpeg availability |
+| `IModelService` | Load Whisper models with reuse-first behavior; provide model inspection |
+| `IWavAudioLoader` | Parse WAV files into normalized float sample arrays for Whisper inference |
+| `ILanguageSelectionService` | Run Whisper inference per configured language and select the best candidate |
+| `ITranscriptionFilter` | Apply configurable post-processing rules to accept or reject raw Whisper segments |
+| `IOutputWriter` | Write accepted transcript segments to a UTF-8 text file |
+| `IFileDiscoveryService` | Discover and enumerate input files for batch processing |
+| `IBatchSummaryWriter` | Generate human-readable batch processing summary reports |
+
+All 13 interfaces are registered through `AddVoxFlowCore()`. Hosts consume them via constructor injection.
 
 ---
 
@@ -120,10 +153,9 @@ flowchart LR
 **Responsibility:** Single entry point for registering all Core services in any host's DI container.
 
 **Key behaviors:**
-- Registers all service interfaces with their implementations
-- Configures TranscriptionOptions from configuration
-- Ensures consistent service lifetimes across hosts
-- Called by CLI, MCP Server, and Desktop as the shared DI baseline; Desktop then adds its own configuration and bridge services
+- Registers all 13 service interfaces with their concrete implementations as singletons
+- Called by CLI, MCP Server, and Desktop as the shared DI baseline
+- Desktop then overrides `IConfigurationService` with `DesktopConfigurationService` and conditionally replaces `ITranscriptionService` with `DesktopCliTranscriptionService` on Intel Mac Catalyst
 
 ---
 
@@ -134,17 +166,18 @@ flowchart LR
 **Responsibility:** Thin CLI entry point. Sets up DI via `AddVoxFlowCore()`, manages cancellation (Ctrl+C → CancellationTokenSource), and maps outcomes to exit codes.
 
 **Key behaviors:**
-- Registers Core services and console-specific progress reporting
-- Delegates to `ITranscriptionService` or `IBatchTranscriptionService` via DI
+- Registers Core services with `ValidateOnBuild` and `ValidateScopes` enabled
+- Delegates to `ITranscriptionService` for single-file mode or `IBatchTranscriptionService` for batch mode based on `options.IsBatchMode`
 - Provides `CliProgressHandler` as the `IProgress<ProgressUpdate>` implementation
+- Renders startup validation report via `ConsoleValidationReporter`
 
-**Exit codes:** 0 (success), 1 (failure), 130 (cancelled)
+**Exit codes:** 0 (success), 1 (failure or cancellation)
 
 ---
 
 ### TranscriptionOptions (Configuration)
 
-**File:** `Configuration/TranscriptionOptions.cs`
+**File:** `VoxFlow.Core/Configuration/TranscriptionOptions.cs`
 
 **Responsibility:** Load, validate, and normalize all runtime settings into a sealed immutable object.
 
@@ -164,7 +197,7 @@ flowchart LR
 
 ### ValidationService (Preflight Checks)
 
-**File:** `Services/ValidationService.cs`
+**File:** `VoxFlow.Core/Services/ValidationService.cs`
 
 **Responsibility:** Run configurable preflight checks and produce a structured validation report.
 
@@ -190,33 +223,29 @@ flowchart LR
 - `ValidationResult` (record) — aggregated check results with overall outcome
 - `ValidationCheck` (record) — name, status, details
 - `ValidationCheckStatus` (enum) — Passed, Warning, Failed, Skipped
-- `ConsoleValidationReporter` (static class) — ANSI-colored console output for CLI
+- `ConsoleValidationReporter` (static class in `VoxFlow.Cli`) — ANSI-colored console output for CLI
 
 ---
 
 ### AudioConversionService (Audio Preprocessing)
 
-**File:** `Audio/AudioConversionService.cs`
+**File:** `VoxFlow.Core/Services/AudioConversionService.cs`
 
-**Responsibility:** Invoke ffmpeg to convert `.m4a` input to filtered mono 16kHz WAV.
+**Responsibility:** Invoke ffmpeg to convert input audio to filtered mono 16kHz WAV.
 
 **Key behaviors:**
 - Validates input file existence before conversion
 - Validates ffmpeg availability (separate from startup validation — can be called independently)
 - Builds ffmpeg command line from configuration (audio filters, codec settings)
 - Manages ffmpeg child process lifecycle including cancellation (kills process on token cancellation)
-- Two overloads: single-file (fixed output path) and batch (per-file temp path)
 
 **Design note:** Within `VoxFlow.Core`, this is the only module that spawns external processes. Desktop host code may additionally launch the local CLI bridge on Intel Mac Catalyst.
-
-**Related types:**
-- `ProcessRunResult` (record) — exit code, stdout, stderr from ffmpeg
 
 ---
 
 ### WavAudioLoader (Audio Parsing)
 
-**File:** `Audio/WavAudioLoader.cs`
+**File:** `VoxFlow.Core/Services/WavAudioLoader.cs`
 
 **Responsibility:** Parse WAV files into normalized float sample arrays suitable for Whisper inference.
 
@@ -233,7 +262,7 @@ flowchart LR
 
 ### ModelService (Model Management)
 
-**File:** `Services/ModelService.cs`
+**File:** `VoxFlow.Core/Services/ModelService.cs`
 
 **Responsibility:** Load Whisper GGML models with reuse-first behavior.
 
@@ -242,6 +271,7 @@ flowchart LR
 - Downloads model only when file is missing, empty, or corrupt
 - Uses atomic file operations (write to temp, then move) to prevent corrupt partial downloads
 - Returns a `WhisperFactory` ready for processor creation
+- Provides `InspectModel()` for read-only model metadata (consumed by MCP `inspect_model` tool)
 
 **Reuse-first strategy:**
 ```
@@ -254,7 +284,7 @@ Model file missing?          → Download
 
 ### LanguageSelectionService (Inference + Scoring)
 
-**File:** `Services/LanguageSelectionService.cs`
+**File:** `VoxFlow.Core/Services/LanguageSelectionService.cs`
 
 **Responsibility:** Run Whisper inference for configured languages and select the best candidate.
 
@@ -269,15 +299,15 @@ Model file missing?          → Download
 **Scoring formula:** Each segment's probability is weighted by its duration relative to total audio duration. This prevents a single long low-confidence segment from dominating the score.
 
 **Related types:**
-- `CandidateTranscriptionResult` (record) — language, segments, score
-- `LanguageSelectionDecision` (record) — winning candidate + optional warning
-- `UnsupportedLanguageException` — controlled failure for invalid language codes
+- `LanguageSelectionResult` (public record) — winning language, score, audio duration, accepted/skipped segments, optional warning
+- `LanguageSelectionDecision` (internal record) — winning candidate + optional warning
+- `CandidateResult` (internal record) — language, segments, score for one candidate pass
 
 ---
 
 ### TranscriptionFilter (Post-Processing)
 
-**File:** `Processing/TranscriptionFilter.cs`
+**File:** `VoxFlow.Core/Services/TranscriptionFilter.cs`
 
 **Responsibility:** Accept or reject raw Whisper segments based on configurable rules.
 
@@ -310,16 +340,15 @@ Model file missing?          → Download
 **Responsibility:** Render real-time progress during transcription.
 
 **Key behaviors:**
-- Renders a single-line console progress prefix derived from `ProgressStage`
-- Prints percentage completion and current message
-- Writes a final newline on `Complete` or `Failed`
+- **Interactive mode (default):** Renders a single-line console progress prefix derived from `ProgressStage`, prints percentage completion and current message, writes a final newline on `Complete` or `Failed`
+- **Structured mode (`VOXFLOW_PROGRESS_STREAM=1`):** Emits JSON-encoded `CliProgressEnvelope` lines to stderr, prefixed with `VOXFLOW_PROGRESS `. This mode is used by the Desktop CLI bridge to receive progress updates from the child CLI process.
 - Stays thin by consuming the host-agnostic `ProgressUpdate` type from Core
 
 ---
 
 ### OutputWriter (File Output)
 
-**File:** `Services/OutputWriter.cs`
+**File:** `VoxFlow.Core/Services/OutputWriter.cs`
 
 **Responsibility:** Write accepted transcript segments to a UTF-8 text file.
 
@@ -331,7 +360,7 @@ Model file missing?          → Download
 
 ### FileDiscoveryService (Batch Input)
 
-**File:** `Services/FileDiscoveryService.cs`
+**File:** `VoxFlow.Core/Services/FileDiscoveryService.cs`
 
 **Responsibility:** Discover input files for batch processing.
 
@@ -349,7 +378,7 @@ Model file missing?          → Download
 
 ### BatchSummaryWriter (Batch Reporting)
 
-**File:** `Services/BatchSummaryWriter.cs`
+**File:** `VoxFlow.Core/Services/BatchSummaryWriter.cs`
 
 **Responsibility:** Generate a human-readable summary of batch processing results.
 
@@ -367,15 +396,16 @@ Model file missing?          → Download
 
 ### PathPolicy (Security)
 
-**File:** `Security/PathPolicy.cs`
+**File:** `VoxFlow.McpServer/Security/PathPolicy.cs`
 
 **Responsibility:** Enforce allowed input/output root directories for file paths provided by AI clients.
 
 **Key behaviors:**
 - Validates paths are absolute (when `requireAbsolutePaths` is configured)
-- Rejects path traversal patterns (`../`, `..\\`)
-- Normalizes and checks paths against configured allowed root directories
-- Provides `SanitizePath()` for safe error messages (no raw user paths in errors)
+- Rejects path traversal patterns (`..`, `~`, null bytes)
+- Normalizes and checks paths against configured allowed root directories (with trailing-separator enforcement to prevent prefix collisions)
+- Provides `SanitizePath()` for safe error messages (shows only filename, never full path)
+- Exposes `IsAllowedInputPath()` / `IsAllowedOutputPath()` for non-throwing validation
 
 ---
 
@@ -387,7 +417,9 @@ Model file missing?          → Download
 
 **6 tools:** `validate_environment`, `transcribe_file`, `transcribe_batch`, `get_supported_languages`, `inspect_model`, `read_transcript`
 
-Each tool validates paths via `IPathPolicy`, delegates to the appropriate Core service interface, and returns JSON-serialized results.
+**Injected Core dependencies:** `ITranscriptionService`, `IBatchTranscriptionService`, `IValidationService`, `IModelService`, `IConfigurationService`, `ITranscriptReader`, `IPathPolicy`, `IOptions<McpOptions>`
+
+Each tool validates paths via `IPathPolicy`, delegates to the appropriate Core service interface, and returns JSON-serialized results. `transcribe_batch` additionally checks `McpOptions.AllowBatch` and passes `McpOptions.MaxBatchFiles` as a cap.
 
 ---
 
@@ -399,15 +431,19 @@ Each tool validates paths via `IPathPolicy`, delegates to the appropriate Core s
 
 **4 prompts:** `transcribe-local-audio`, `batch-transcribe-folder`, `diagnose-transcription-setup`, `inspect-last-transcript`
 
+Prompts are registered via `[McpServerPromptType]` and `.WithPromptsFromAssembly()` in the MCP host.
+
 ---
 
-### WhisperMcpResourceTools (MCP Resource Tools)
+### WhisperMcpResourceTools (Configuration Inspection Tool)
 
 **File:** `VoxFlow.McpServer/Resources/WhisperMcpResources.cs`
 
-**Responsibility:** Expose read-only VoxFlow configuration as an MCP tool.
+**Responsibility:** Expose read-only VoxFlow configuration as an MCP tool for AI client inspection.
 
-**1 tool:** `get_effective_config` — returns the resolved configuration snapshot as JSON.
+**1 tool:** `get_effective_config` — returns a resolved configuration snapshot as JSON, including model path, sample rate, supported languages, filter thresholds, and startup validation state.
+
+**Important implementation detail:** Despite the class name and file location suggesting "resources," this component is annotated with `[McpServerToolType]` and is registered through `.WithToolsFromAssembly()` — the same mechanism as `WhisperMcpTools`. The MCP host does **not** register any first-class MCP protocol resources via `.WithResourcesFromAssembly()`. The "resource" framing is conceptual only: these are regular MCP tools that happen to return read-only configuration data.
 
 ---
 
@@ -417,7 +453,19 @@ Each tool validates paths via `IPathPolicy`, delegates to the appropriate Core s
 
 **Responsibility:** MCP-specific configuration loaded from the `mcp` section of `appsettings.json`.
 
-**Key settings:** server name/version, allowed input/output roots, batch limits, path policy, resource/prompt toggles, logging.
+**Actively enforced settings:**
+- `ServerName` / `ServerVersion` — set on the MCP server info during host startup
+- `AllowedInputRoots` / `AllowedOutputRoots` — passed to `PathPolicy` constructor
+- `RequireAbsolutePaths` — passed to `PathPolicy` constructor
+- `AllowBatch` — checked by `WhisperMcpTools.TranscribeBatchAsync()` before batch execution
+- `MaxBatchFiles` — passed to `BatchTranscribeRequest` as the file count cap
+
+**Configuration-only (not enforced at runtime):**
+- `Resources.Enabled` / `Resources.ExposeLastRun` — defined in `McpResourceOptions` but not consumed by any runtime code
+- `Prompts.Enabled` — defined in `McpPromptOptions` but not consumed by any runtime code
+- `Logging.MinimumLevel` / `Logging.WriteToStdErr` / `Logging.WriteToFile` / `Logging.LogFilePath` — defined in `McpLoggingOptions` but not consumed by any runtime code
+
+These unenforced options exist as configuration placeholders for future enablement.
 
 ---
 
@@ -425,17 +473,34 @@ Each tool validates paths via `IPathPolicy`, delegates to the appropriate Core s
 
 > These components live in the `VoxFlow.Desktop` project — a .NET 9 MAUI Blazor Hybrid macOS application that uses `VoxFlow.Core` via DI.
 
+### MauiProgram (Composition Root)
+
+**File:** `VoxFlow.Desktop/MauiProgram.cs`
+
+**Responsibility:** Desktop DI composition root that builds on top of `AddVoxFlowCore()`.
+
+**Key registrations beyond Core:**
+- `DesktopConfigurationService` as both its concrete type and as the `IConfigurationService` override (replaces the Core `ConfigurationService`)
+- `IResultActionService` → `ResultActionService` for clipboard and Finder actions
+- `DesktopCliTranscriptionService` as the `ITranscriptionService` override — only when `DesktopCliSupport.ShouldUseCliBridge()` returns true (Intel Mac Catalyst)
+- `AppViewModel` as a singleton
+- `MainPage` as a singleton
+
+---
+
 ### DesktopConfigurationService (Desktop Config Composition)
 
 **File:** `VoxFlow.Desktop/Configuration/DesktopConfigurationService.cs`
 
-**Responsibility:** Build the Desktop runtime configuration from bundled defaults, user overrides, and optional explicit overrides.
+**Responsibility:** Build the Desktop runtime configuration from bundled defaults, user overrides, and optional explicit overrides. Implements `IConfigurationService` to replace the Core configuration loader.
 
 **Key behaviors:**
 - Merges bundled `appsettings.json` with `~/Library/Application Support/VoxFlow/appsettings.json`
 - Normalizes Desktop paths into `~/Library/Application Support/VoxFlow/` and `~/Documents/VoxFlow/`
 - Writes temporary merged snapshots for startup and CLI-bridge execution
-- Applies Intel bridge compatibility overrides during startup validation only
+- Applies Intel bridge compatibility overrides during startup validation only (disables `checkModelLoadability`, `checkWhisperRuntime`, `checkLanguageSupport`)
+- Provides `SaveUserOverridesAsync()` for persisting user setting changes
+- Expands `~` home directory references in path values
 
 ---
 
@@ -447,10 +512,31 @@ Each tool validates paths via `IPathPolicy`, delegates to the appropriate Core s
 
 **Key behaviors:**
 - Writes a merged temporary config and injects the selected input path
-- Launches `VoxFlow.Cli` via `dotnet exec` when a built CLI assembly exists, otherwise falls back to `dotnet run --project`
-- Reports Desktop-friendly progress such as `Running CLI transcription pipeline...`
-- Parses CLI stdout/stderr for success metadata and failure messages
-- Reads the resulting transcript file back into the Desktop UI
+- Launches `VoxFlow.Cli` via `dotnet exec` when a bundled or built CLI assembly exists, otherwise falls back to `dotnet run --project`
+- Sets `TRANSCRIPTION_SETTINGS_PATH` to the merged config and `VOXFLOW_PROGRESS_STREAM=1` to enable structured progress output
+- Parses structured `VOXFLOW_PROGRESS` lines from CLI stderr for Desktop-friendly progress updates
+- Parses CLI stdout/stderr for success metadata (`DetectedLanguage`, `AcceptedSegmentCount`) and failure messages
+- Reads the resulting transcript file back into the Desktop UI via `ITranscriptReader`
+- Kills the child process tree on cancellation
+
+**CLI resolution order:**
+1. Bundled assembly at `{baseDir}/cli/VoxFlow.Cli.dll` or MonoBundle equivalent
+2. Built assembly at `src/VoxFlow.Cli/bin/{Debug|Release}/net9.0/VoxFlow.Cli.dll`
+3. Project fallback via `dotnet run --project src/VoxFlow.Cli/VoxFlow.Cli.csproj`
+
+---
+
+### DesktopCliSupport (Bridge Utilities)
+
+**File:** `VoxFlow.Desktop/Services/DesktopCliSupport.cs`
+
+**Responsibility:** Static utilities for the Intel Mac Catalyst CLI bridge.
+
+**Key behaviors:**
+- `ShouldUseCliBridge()` — returns true when `OperatingSystem.IsMacCatalyst()` and `RuntimeInformation.ProcessArchitecture == Architecture.X64`
+- `ResolveCliInvocation()` — resolves the CLI assembly or project path
+- `TryParseProgressUpdate()` — deserializes structured progress JSON from CLI output
+- `ExtractSuccessMetadata()` / `ExtractFailureMessage()` — parses CLI output for result information
 
 ---
 
@@ -464,8 +550,53 @@ Each tool validates paths via `IPathPolicy`, delegates to the appropriate Core s
 - Initializes the app by loading configuration and running startup validation
 - Owns the UI state machine: `Ready`, `Running`, `Failed`, `Complete`
 - Stores the last selected file for retry
-- Builds `BlockingValidationMessage` from failed startup checks
+- Builds `BlockingValidationMessage` from failed startup checks and `WarningMessage` from warning checks
 - Accepts `ProgressUpdate` events through `BlazorProgressHandler` and exposes them to the UI
+- Provides `GetFullTranscript()` which reads the full result file, falling back to `TranscriptPreview`
+- Cleans up intermediate WAV files after transcription completes
+- Places result files in `~/Documents/VoxFlow/output/{inputName}.txt`
+
+---
+
+### BlazorProgressHandler (Desktop Progress)
+
+**File:** `VoxFlow.Desktop/Services/BlazorProgressHandler.cs`
+
+**Responsibility:** Bridge Core `IProgress<ProgressUpdate>` callbacks to the Blazor UI thread.
+
+**Key behavior:** Dispatches progress updates to `MainThread` and sets `AppViewModel.CurrentProgress`, then calls `NotifyStateChanged()` to trigger Blazor re-rendering.
+
+---
+
+### ResultActionService (Post-Transcription Actions)
+
+**File:** `VoxFlow.Desktop/Services/ResultActionService.cs`
+
+**Responsibility:** Handle post-transcription user actions in the Desktop UI.
+
+**Actions:**
+- `CopyTextAsync()` — copies transcript text to the macOS clipboard via `Clipboard.Default`
+- `OpenResultFolderAsync()` — opens the result folder in Finder via `/usr/bin/open`
+
+---
+
+### MacFilePicker (Native File Selection)
+
+**File:** `VoxFlow.Desktop/Platform/MacFilePicker.cs`
+
+**Responsibility:** Provide a macOS-native audio file picker for the Desktop UI.
+
+**Key behavior:** Uses MAUI `FilePicker.Default` with `public.audio` UTI filter, invoked on the main thread. Returns the selected file's full path or null.
+
+---
+
+### DesktopDiagnostics (Crash Logging)
+
+**File:** `VoxFlow.Desktop/Services/DesktopDiagnostics.cs`
+
+**Responsibility:** Capture unhandled exceptions to a persistent log file at `~/Library/Application Support/VoxFlow/logs/desktop.log`.
+
+**Key behavior:** Hooks `AppDomain.CurrentDomain.UnhandledException` and `TaskScheduler.UnobservedTaskException` to ensure crash information is not silently lost in the MAUI Blazor Hybrid host.
 
 ---
 

@@ -51,14 +51,18 @@ The shared pipeline remains configuration loading, startup validation, ffmpeg-ba
 
 | Document | Purpose |
 |---|---|
-| [SETUP.md](SETUP.md) | Technical setup, local development, and operations |
-| [docs/architecture/](docs/architecture/) | Detailed architecture views and ADRs |
-| [PRD.md](docs/product/PRD.md) | Product requirements document |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture decisions and system design |
-| [ROADMAP.md](docs/product/ROADMAP.md) | Feature implementation roadmap |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow, quality bar, and review expectations |
-| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Community behavior expectations and enforcement model |
-| [SECURITY.md](SECURITY.md) | Vulnerability reporting and supported-version policy |
-| [LICENSE](LICENSE) | MIT license for source and documentation |
+| [Developer Setup](docs/developer/setup.md) | Prerequisites, build, run, test, and configuration |
+| [Architecture](docs/architecture/) | C4 views, component details, runtime sequences, quality attributes |
+| [Architecture Decisions](docs/adr/README.md) | ADR index and decision log |
+| [Architecture Overview](ARCHITECTURE.md) | High-level architecture summary |
+| [Deployment](docs/deployment/macos-packaging.md) | macOS packaging and distribution |
+| [Delivery](docs/delivery/release-process.md) | Release process and checklist |
+| [Runbooks](docs/runbooks/) | Smoke tests, troubleshooting, Desktop UI automation |
+| [PRD](docs/product/PRD.md) | Product requirements document |
+| [Roadmap](docs/product/ROADMAP.md) | Feature implementation roadmap |
+| [Contributing](CONTRIBUTING.md) | Contribution workflow, quality bar, and review expectations |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | Community behavior expectations and enforcement model |
+| [Security](SECURITY.md) | Vulnerability reporting and supported-version policy |
+| [License](LICENSE) | MIT license for source and documentation |
 
-For technical setup, local development, and operations, please see [SETUP.md](SETUP.md).
+For technical setup, local development, and operations, start with the [Developer Setup Guide](docs/developer/setup.md).

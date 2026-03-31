@@ -23,6 +23,10 @@ This document provides the architectural overview. Detailed views are in [`docs/
 | Quality Attributes | [05-quality-attributes.md](docs/architecture/05-quality-attributes.md) | Privacy, reliability, testability, operability analysis |
 | Decision Log | [06-decision-log.md](docs/architecture/06-decision-log.md) | ADRs with alternatives considered and trade-offs |
 | Architecture Review | [07-architecture-review.md](docs/architecture/07-architecture-review.md) | Summary assessment of the current design |
+| Testing Strategy | [08-testing-strategy.md](docs/architecture/08-testing-strategy.md) | Test pyramid, infrastructure, and coverage layers |
+| Frontend Architecture | [09-frontend-architecture.md](docs/architecture/09-frontend-architecture.md) | Desktop Blazor Hybrid UI structure and state management |
+| Performance & Scalability | [10-performance-scalability.md](docs/architecture/10-performance-scalability.md) | Resource management, scaling characteristics, trade-offs |
+| Risks & Open Questions | [11-risks-assumptions.md](docs/architecture/11-risks-assumptions.md) | Assumptions, risks, and unresolved design questions |
 
 ## Design Principles
 
@@ -81,9 +85,9 @@ In batch mode, the pipeline after model loading repeats per file, with error iso
 | Project | Folder | Responsibility |
 |--------|--------|----------------|
 | `VoxFlow.Core` | `src/VoxFlow.Core/` | Shared configuration loading, startup validation, single-file transcription, batch orchestration, model management, filtering, and file output |
-| `VoxFlow.Cli` | `src/VoxFlow.Cli/` | Console host, Ctrl+C cancellation, console progress, and CLI-oriented exit codes |
-| `VoxFlow.Desktop` | `src/VoxFlow.Desktop/` | MAUI Blazor Hybrid shell, Desktop configuration merge, native file picker / drag-and-drop adapters, and contextual UI flow |
-| `VoxFlow.McpServer` | `src/VoxFlow.McpServer/` | Stdio MCP host, path safety policy, tools, prompts, and configuration/resource inspection |
+| `VoxFlow.Cli` | `src/VoxFlow.Cli/` | Console host, Ctrl+C cancellation, console progress, structured progress output for Desktop bridge, and CLI-oriented exit codes |
+| `VoxFlow.Desktop` | `src/VoxFlow.Desktop/` | MAUI Blazor Hybrid shell, Desktop configuration merge, native file picker / drag-and-drop adapters, result actions (clipboard, Finder), crash diagnostics, and contextual UI flow |
+| `VoxFlow.McpServer` | `src/VoxFlow.McpServer/` | Stdio MCP host, path safety policy, 7 MCP tools (including configuration inspection), 4 prompts |
 | `tests/*` | `tests/` | Unit, regression, end-to-end, and headless Desktop UI/component tests |
 
 ## Key Architectural Decisions
@@ -164,18 +168,18 @@ The architecture supports testability through module isolation:
 
 - **Unit tests** cover configuration validation, startup reporting, WAV parsing, transcript filtering, language selection logic, output formatting, file discovery, and batch summary generation.
 - **End-to-end tests** validate full application startup, transcription flow entry, batch processing, and error handling using generated WAV fixtures and fake ffmpeg executables.
-- **MCP server tests** cover path policy validation, MCP configuration binding, application contract DTOs, and facade behavior (transcript reading with real file I/O).
-- **Desktop UI tests** cover headless Razor rendering for `Routes`, `MainLayout`, `ReadyView`, `RunningView`, `CompleteView`, `FailedView`, `DropZone`, status/progress/result states, start-guard validation, transient-state clearing, cancellation cleanup, warning handling, progress accessibility, human-readable stage labels, full-transcript copy, preview truncation, action error handling, and real-audio browse integration at the `ReadyView` level.
-- **Desktop real UI automation** covers app launch, browse-file happy path, transcript copy, failure recovery, and repeated sequential processing against the actual `.app` bundle.
+- **MCP server tests** cover path policy validation, MCP configuration binding, Core model integration, and tool behavior (transcript reading with real file I/O).
+- **Desktop component tests** cover headless Razor rendering for `Routes`, `MainLayout`, `ReadyView`, `RunningView`, `CompleteView`, `FailedView`, `DropZone`, status/progress/result states, start-guard validation, transient-state clearing, cancellation cleanup, warning handling, progress accessibility, human-readable stage labels, full-transcript copy, preview truncation, action error handling, and real-audio browse integration at the `ReadyView` level.
+- **Desktop real UI automation** covers app launch, browse-file happy path, transcript copy, failure recovery, and repeated sequential processing against the actual `.app` bundle. The automation bridge (`DesktopUiAutomationHost`) uses file-based IPC with the WKWebView to drive DOM interactions from out-of-process test code.
 - **Test support utilities** (`tests/TestSupport/`) provide deterministic test infrastructure: temporary directories, generated settings files, WAV fixtures, and mock ffmpeg.
 
 All tests run locally without network access, consistent with the local-only architecture.
 
-Current verification status as of March 28, 2026:
+Current verification status:
 
 - Core and CLI processing are verified against `artifacts/Input/Test 1.m4a` and `artifacts/Input/Test 2.m4a`.
 - The Desktop `ReadyView -> DropZone -> AppViewModel -> VoxFlow.Core` path passes with real audio.
-- The fully integrated `Routes`-based Desktop shell is stable: all headless and real UI tests pass. Phase 1 Desktop stabilization is complete.
+- The fully integrated `Routes`-based Desktop shell is stable: all headless and real UI tests pass.
 
 ## Related Documents
 

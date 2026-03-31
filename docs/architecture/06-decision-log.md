@@ -346,7 +346,7 @@
 
 **Context:** The [ROADMAP](../product/ROADMAP.md) calls for exposing VoxFlow transcription capabilities to AI clients (Claude, ChatGPT, GitHub Copilot, VS Code) via the Model Context Protocol. The MCP SDK (`ModelContextProtocol` NuGet v1.1.0) requires a DI-based composition root with constructor injection, while VoxFlow uses static services.
 
-**Decision:** Create a separate .NET 9 console application (`WhisperNET.McpServer`) that references `VoxFlow.csproj` and accesses internal types via `InternalsVisibleTo`. Application facades bridge static services to DI-compatible interfaces. Host-agnostic DTOs decouple MCP tool schemas from internal service signatures.
+**Decision:** Create a separate .NET 9 console application (`VoxFlow.McpServer`) that references `VoxFlow.csproj` and accesses internal types via `InternalsVisibleTo`. Application facades bridge static services to DI-compatible interfaces. Host-agnostic DTOs decouple MCP tool schemas from internal service signatures.
 
 **Superseded:** The introduction of `VoxFlow.Core` as a shared library (ADR-019) eliminated the need for `InternalsVisibleTo` and application facades. The MCP server now injects Core interfaces directly via DI, just like the CLI and Desktop hosts. See ADR-023 for details.
 

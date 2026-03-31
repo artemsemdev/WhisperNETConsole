@@ -5,7 +5,7 @@ Thanks for contributing. This repository contains a local-first .NET 9 transcrip
 ## Before You Start
 
 - Read [README.md](README.md) for project scope and current status.
-- Read [SETUP.md](SETUP.md) for prerequisites, build commands, and runtime setup.
+- Read [docs/developer/setup.md](docs/developer/setup.md) for prerequisites, build commands, and runtime setup.
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) and the product docs before making broad design changes.
 - For behavior, feature, or workflow changes that are not obviously small, open an issue first so scope and direction are aligned before implementation.
 

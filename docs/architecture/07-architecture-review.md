@@ -56,9 +56,9 @@ The test support utilities (`FakeFfmpegFactory`, `TestWaveFileFactory`, `Tempora
 
 All three hosts (CLI, MCP Server, Desktop) use `VoxFlow.Core` via a single `AddVoxFlowCore()` DI registration. Each host contains only its specific concerns:
 
-- **CLI:** Console progress rendering, exit code mapping
-- **MCP Server:** Stdio transport, path policy enforcement, MCP tool/prompt definitions
-- **Desktop:** Blazor UI, AppViewModel, Desktop config merge, macOS native shell, Intel CLI bridge
+- **CLI:** Console progress rendering, structured progress output for Desktop bridge, exit code mapping
+- **MCP Server:** Stdio transport, path policy enforcement, 7 MCP tools, 4 prompts (no first-class MCP resources)
+- **Desktop:** Blazor UI, AppViewModel, Desktop config merge, macOS native shell, Intel CLI bridge, result actions (clipboard/Finder), crash diagnostics
 
 This validates the architecture's extensibility: three hosts share the same pipeline without any business logic duplication, facade layers, or `InternalsVisibleTo` hacks.
 
@@ -76,12 +76,18 @@ The system now uses dependency injection with `Microsoft.Extensions.DependencyIn
 
 **What changed:** The previous architecture used static services and no DI container. With the addition of the Desktop host (the third host), the evolution from static to DI-based services was triggered — exactly as predicted in the architecture review's evolution table.
 
-### No logging framework
+### No logging framework (CLI and MCP)
 
-The application writes directly to `Console.Error` and `Console.Out`. There is no ILogger, no structured logging, no log levels. This works because:
+The CLI and MCP hosts write directly to `Console.Error` and `Console.Out`. There is no ILogger, no structured logging, no log levels. This works because:
 - The application runs interactively in a terminal — console output is the primary feedback channel
 - There is no need for log aggregation, alerting, or machine-parseable log output
 - The startup validation report and batch summary already provide structured diagnostic output
+
+The Desktop host adds `DesktopDiagnostics` for crash logging to `~/Library/Application Support/VoxFlow/logs/desktop.log`, but this is a minimal unhandled-exception capture, not a full logging framework.
+
+### MCP configuration toggles are placeholders
+
+`McpOptions` defines `Resources.Enabled`, `Resources.ExposeLastRun`, `Prompts.Enabled`, and `Logging.*` properties, but none of these are consumed by runtime code. They exist as configuration scaffolding for future enablement. This is acceptable because the MCP server is already functional with its current tool and prompt set, and adding runtime enforcement for these toggles is a straightforward change when needed.
 
 ### No async pipeline / middleware pattern
 

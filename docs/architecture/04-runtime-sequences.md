@@ -97,7 +97,7 @@ sequenceDiagram
         Lang-->>Program: OperationCanceledException
     end
 
-    Program-->>User: Exit with cancellation message
+    Program-->>User: Exit 1 with cancellation message
 ```
 
 ## MCP Server — Tool Invocation
@@ -224,7 +224,7 @@ sequenceDiagram
 
 **Desktop config merge is host-specific.** Desktop does not rely on `TRANSCRIPTION_SETTINGS_PATH` by default. It builds a merged runtime config from bundled defaults plus `~/Library/Application Support/VoxFlow/appsettings.json`.
 
-**Intel Mac Catalyst uses the CLI bridge.** Desktop replaces the default `ITranscriptionService` with `DesktopCliTranscriptionService` on Intel Mac Catalyst. The workaround stays local and reuses the current CLI pipeline rather than forking Core logic.
+**Intel Mac Catalyst uses the CLI bridge.** Desktop replaces the default `ITranscriptionService` with `DesktopCliTranscriptionService` on Intel Mac Catalyst. The workaround stays local and reuses the current CLI pipeline rather than forking Core logic. The bridge communicates progress via structured JSON lines on stderr (enabled by setting `VOXFLOW_PROGRESS_STREAM=1`), parsed by `DesktopCliSupport.TryParseProgressUpdate()`.
 
 **Desktop startup validation is non-blocking at the route level.** Validation failures do not crash the shell. Instead, the app stays on `ReadyView`, surfaces the failed checks, and disables file selection until the configuration is fixed.
 

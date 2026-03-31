@@ -129,3 +129,4 @@ The system context has no:
 - **Cloud inference services** — transcription stays local-only.
 - **Database** — file system persistence is sufficient for this tool.
 - **HTTP/SSE MCP transport** — MCP remains stdio-only to keep the local security model simple.
+- **MCP protocol resources** — the MCP host exposes only tools and prompts. Configuration inspection is delivered as a regular MCP tool (`get_effective_config`), not as a first-class MCP resource.

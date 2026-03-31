@@ -58,9 +58,9 @@
 | Batch processing | `[File X/Y]` context in progress display; summary report at end |
 
 **How enforced:**
-- ConsoleProgressService detects interactive vs. redirected output (disables ANSI for pipes)
-- StartupValidationConsoleReporter uses color-coded ANSI output
-- Exit codes map to outcomes: 0 (success), 1 (failure), 130 (cancelled)
+- `CliProgressHandler` detects interactive vs. structured output mode (emits JSON when `VOXFLOW_PROGRESS_STREAM=1`, otherwise renders inline console progress)
+- `ConsoleValidationReporter` uses color-coded ANSI output (disabled when `Console.IsOutputRedirected`)
+- Exit codes map to outcomes: 0 (success), 1 (failure or cancellation)
 
 **Trade-off accepted:** Console output is verbose by design. This prioritizes diagnosability over quiet operation. A `--quiet` flag could be added but is not needed for the current use case.
 

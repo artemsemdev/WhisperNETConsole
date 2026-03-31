@@ -60,7 +60,7 @@ flowchart TB
     subgraph mcp_container["VoxFlow.McpServer Process (.NET 9)"]
         direction TB
         mcp_program["Program.cs<br/><i>DI composition root,<br/>stdio transport setup</i>"]
-        tools["WhisperMcpTools / Prompts / Resources"]
+        tools["WhisperMcpTools / Prompts / ResourceTools"]
         pathpolicy["PathPolicy<br/><i>Input/output root enforcement</i>"]
         mcp_options["McpOptions"]
     end
@@ -139,19 +139,24 @@ flowchart TB
 | **Configuration is immutable after load.** `TranscriptionOptions` is a sealed runtime snapshot. | Compiler-enforced |
 | **Core external process execution is confined to `AudioConversionService`.** Desktop host code may additionally spawn a local CLI helper on Intel Mac Catalyst. | By convention |
 | **Native Whisper runtime calls stay inside Core services.** Hosts never call Whisper APIs directly. | By convention |
-| **Core file writes are confined to `OutputWriter`, `BatchSummaryWriter`, and `ModelService`.** Desktop host code may also write merged temp config snapshots and user override files. | By convention |
+| **Core file writes are confined to `OutputWriter`, `BatchSummaryWriter`, and `ModelService`.** Desktop host code may also write merged temp config snapshots, user override files, and crash diagnostic logs. | By convention |
 | **Progress reporting uses `IProgress<ProgressUpdate>`.** Core has no dependency on console, Blazor, or MCP output mechanisms. | Compiler-enforced by project boundaries |
+| **MCP exposes only tools and prompts — no first-class MCP resources.** Configuration inspection is delivered as a regular MCP tool. | Visible in MCP host startup (no `.WithResourcesFromAssembly()`) |
 
 ## Shared Core with Dependency Injection
 
 With three hosts sharing one pipeline, `VoxFlow.Core` is the right home for all transcription business logic. `AddVoxFlowCore()` registers the shared service set used by CLI, MCP, and Desktop.
 
-Desktop adds two host-only layers on top:
+Desktop adds host-only layers on top:
 
-- `DesktopConfigurationService`, which merges bundled defaults, user overrides, and optional override files into a temporary config snapshot
+- `DesktopConfigurationService`, which replaces the Core `IConfigurationService` to merge bundled defaults, user overrides, and optional override files into a temporary config snapshot
 - `DesktopCliTranscriptionService`, which replaces the default `ITranscriptionService` on Intel Mac Catalyst and launches `VoxFlow.Cli` locally
+- `ResultActionService` (`IResultActionService`), which provides clipboard copy and Finder integration for the Desktop UI
+- `BlazorProgressHandler`, which bridges Core `IProgress<ProgressUpdate>` callbacks to the Blazor UI thread
+- `DesktopDiagnostics`, which captures unhandled exceptions to a persistent log file
+- `MacFilePicker`, which provides a macOS-native audio file selection dialog
 
-That keeps the compatibility workaround in the Desktop host instead of leaking platform-specific branching into Core.
+That keeps platform-specific concerns in the Desktop host instead of leaking them into Core.
 
 ## Layer Interactions
 
@@ -177,6 +182,6 @@ Host (CLI / MCP / Desktop)
 ## Container-Specific Notes
 
 - **CLI** is the canonical terminal host. It exercises the shared pipeline directly and is also reused by Desktop as a local helper on Intel Mac Catalyst.
-- **MCP Server** is intentionally thin: it validates paths, delegates to Core, and keeps stdout clean for protocol traffic.
+- **MCP Server** is intentionally thin: it validates paths, delegates to Core, and keeps stdout clean for protocol traffic. It exposes 7 MCP tools and 4 prompts, but no first-class MCP protocol resources.
 - **Desktop** is a single-file user workflow today. Batch processing exists in Core but is not exposed in the UI.
 - **Desktop on Intel** is no longer a pure in-process container at transcription time. It remains a local-only system, but the Desktop process launches the CLI container to keep Whisper execution on the known-good path for that platform.
