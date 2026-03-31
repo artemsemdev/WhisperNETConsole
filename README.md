@@ -56,10 +56,8 @@ The shared pipeline remains configuration loading, startup validation, ffmpeg-ba
 | [Architecture Decisions](docs/adr/README.md) | ADR index and decision log |
 | [Architecture Overview](ARCHITECTURE.md) | High-level architecture summary |
 | [Deployment](docs/deployment/macos-packaging.md) | macOS packaging and distribution |
-| [Delivery](docs/delivery/release-process.md) | Release process and checklist |
 | [Runbooks](docs/runbooks/) | Smoke tests, troubleshooting, Desktop UI automation |
 | [PRD](docs/product/PRD.md) | Product requirements document |
-| [Roadmap](docs/product/ROADMAP.md) | Feature implementation roadmap |
 | [Contributing](CONTRIBUTING.md) | Contribution workflow, quality bar, and review expectations |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community behavior expectations and enforcement model |
 | [Security](SECURITY.md) | Vulnerability reporting and supported-version policy |
