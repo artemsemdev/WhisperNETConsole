@@ -2,62 +2,114 @@
 @inject IResultActionService ResultActionService
 @implements IDisposable
 
-<div class="result-header" id="complete-screen" aria-label="Complete Screen">
-    <div class="result-header-left">
-        <button id="back-to-ready-button"
-                class="result-back-btn"
-                aria-label="Back To Ready Screen"
-                title="Back To Ready Screen"
-                @onclick="ViewModel.GoToReady">&#x2039;</button>
-        <span class="result-filename" id="result-file-name">@(ViewModel.CurrentFileName ?? "result")</span>
+<div class="complete-screen" id="complete-screen" aria-label="Complete Screen">
+    <!-- Success header -->
+    <div class="complete-header">
+        <div class="complete-success-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <h2 class="complete-title">Transcription Complete</h2>
     </div>
-</div>
 
-@if (ViewModel.TranscriptionResult is not null)
-{
-    var result = ViewModel.TranscriptionResult;
-
-    @if (!string.IsNullOrEmpty(result.DetectedLanguage))
+    @if (ViewModel.TranscriptionResult is not null)
     {
-        <p class="result-language" id="result-language">Language: @result.DetectedLanguage</p>
-    }
+        var result = ViewModel.TranscriptionResult;
 
-    @if (!string.IsNullOrEmpty(result.TranscriptPreview))
-    {
-        <div class="transcript-preview mt-4" id="transcript-preview">@result.TranscriptPreview</div>
-        @if (_isPreviewTruncated)
+        <!-- File info bar -->
+        <div class="complete-file-info">
+            <div class="complete-file-name-row">
+                <svg class="complete-file-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M4 2a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1V5.5L9.5 2H4z"
+                          stroke="currentColor" stroke-width="1.2"/>
+                    <path d="M9 2v4h4" stroke="currentColor" stroke-width="1.2"/>
+                </svg>
+                <span class="complete-file-name" id="result-file-name">@(ViewModel.CurrentFileName ?? "result")</span>
+            </div>
+            @if (!string.IsNullOrEmpty(result.DetectedLanguage))
+            {
+                <span class="complete-language-badge" id="result-language">@result.DetectedLanguage</span>
+            }
+        </div>
+
+        <!-- Transcript preview -->
+        @if (!string.IsNullOrEmpty(result.TranscriptPreview))
         {
-            <p class="text-muted mt-1" id="preview-truncation-notice">Preview shows a portion of the full transcript.</p>
+            <div class="complete-transcript-section">
+                <div class="complete-transcript-header">
+                    <span class="complete-transcript-label">Transcript Preview</span>
+                    @if (_isPreviewTruncated)
+                    {
+                        <span class="complete-truncation-badge" id="preview-truncation-notice">Partial</span>
+                    }
+                </div>
+                <div class="transcript-preview" id="transcript-preview">@result.TranscriptPreview</div>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted mt-4" id="preview-unavailable">Transcript preview is not available.</p>
         }
     }
-    else
+
+    @if (!string.IsNullOrWhiteSpace(_actionError))
     {
-        <p class="text-muted mt-4" id="preview-unavailable">Transcript preview is not available.</p>
+        <div class="message message-error mt-2" id="action-error-message" aria-label="Action Error">
+            <span class="message-icon">&#x2717;</span>
+            <span>@_actionError</span>
+        </div>
     }
-}
 
-@if (!string.IsNullOrWhiteSpace(_actionError))
-{
-    <div class="message message-error mt-2" id="action-error-message" aria-label="Action Error">
-        <span class="message-icon">&#x2717;</span>
-        <span>@_actionError</span>
+    <!-- Action buttons -->
+    <div class="complete-actions">
+        <button id="copy-text-button"
+                class="btn @(_copied ? "btn-copied" : "btn-primary")"
+                aria-label="Copy Transcript"
+                title="Copy Transcript"
+                @onclick="CopyTranscript">
+            @if (_copied)
+            {
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M3 8.5l3.5 3.5L13 5" stroke="currentColor" stroke-width="1.5"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Copied!</span>
+            }
+            else
+            {
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+                    <path d="M3 11V3a2 2 0 012-2h6" stroke="currentColor" stroke-width="1.2"/>
+                </svg>
+                <span>Copy Text</span>
+            }
+        </button>
+        <button id="open-folder-button"
+                class="btn btn-secondary"
+                aria-label="Open Result Folder"
+                title="Open Result Folder"
+                @onclick="OpenFolder">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M2 5a1 1 0 011-1h3l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V5z"
+                      stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+            <span>Open Folder</span>
+        </button>
     </div>
-}
 
-<div class="btn-group mt-4">
-    <button id="open-folder-button"
-            class="btn btn-secondary"
-            aria-label="Open Result Folder"
-            title="Open Result Folder"
-            @onclick="OpenFolder">
-        Open Folder
-    </button>
-    <button id="copy-text-button"
-            class="btn btn-secondary"
-            aria-label="Copy Transcript"
-            title="Copy Transcript"
-            @onclick="CopyTranscript">
-        @(_copied ? "Copied!" : "Copy Text")
+    <!-- Return action -->
+    <button id="back-to-ready-button"
+            class="complete-new-btn"
+            aria-label="Back To Ready Screen"
+            title="Start a new transcription"
+            @onclick="ViewModel.GoToReady">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M12 7H2M2 7l4-4M2 7l4 4" stroke="currentColor" stroke-width="1.3"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        New Transcription
     </button>
 </div>
 

@@ -2,7 +2,6 @@
 
 <div class="text-center" id="ready-screen" aria-label="Ready Screen">
     <h1 class="app-main-title" id="ready-screen-title">Audio Transcription</h1>
-    <p class="text-secondary mt-2">Select an audio file to transcribe locally on this Mac</p>
 </div>
 
 @if (ViewModel.HasBlockingValidationErrors && !string.IsNullOrWhiteSpace(ViewModel.BlockingValidationMessage))
@@ -26,7 +25,7 @@
 </div>
 
 <p class="text-muted mt-4 text-center supported-formats">
-    Supported formats: M4A, WAV, MP3, AAC, FLAC, OGG, AIFF, MP4.
+    M4A, WAV, MP3, AAC, FLAC, OGG, AIFF, MP4
 </p>
 
 @code {

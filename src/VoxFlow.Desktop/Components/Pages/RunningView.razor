@@ -131,29 +131,25 @@
     </div>
 
     <div class="progress-info">
-        <p class="progress-filename" id="running-file-name">
-            @(ViewModel.CurrentFileName ?? "audio file")
-        </p>
-
         @if (hasProgress)
         {
-            <p class="progress-stage" id="running-stage" aria-live="polite">
-                <span class="progress-stage-label">@FormatStage(ViewModel.CurrentProgress!.Stage):</span>
-                @ViewModel.CurrentProgress.Message
+            <p class="progress-message" id="running-stage" aria-live="polite">
+                @(!string.IsNullOrEmpty(ViewModel.CurrentProgress!.Message)
+                    ? ViewModel.CurrentProgress.Message
+                    : FormatStage(ViewModel.CurrentProgress.Stage))
             </p>
-
-            @if (!string.IsNullOrEmpty(ViewModel.CurrentProgress.CurrentLanguage))
-            {
-                <p class="progress-language">Language: @ViewModel.CurrentProgress.CurrentLanguage</p>
-            }
-
-            <p class="progress-elapsed">
-                Elapsed: <span class="text-secondary">@FormatElapsed(ViewModel.CurrentProgress.Elapsed)</span>
+            <p class="progress-meta">
+                <span id="running-file-name">@(ViewModel.CurrentFileName ?? "audio file")</span>
+                <span class="progress-dot" aria-hidden="true">&middot;</span>
+                <span>@FormatElapsed(ViewModel.CurrentProgress.Elapsed)</span>
             </p>
         }
         else
         {
-            <p class="progress-stage" id="running-starting-label">Starting transcription...</p>
+            <p class="progress-message" id="running-starting-label">Starting transcription...</p>
+            <p class="progress-meta">
+                <span id="running-file-name">@(ViewModel.CurrentFileName ?? "audio file")</span>
+            </p>
         }
     </div>
 </div>
