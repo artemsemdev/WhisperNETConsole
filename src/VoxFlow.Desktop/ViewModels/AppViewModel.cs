@@ -160,10 +160,28 @@ public class AppViewModel : INotifyPropertyChanged
         var cts = new CancellationTokenSource();
         _cts = cts;
         var progress = new BlazorProgressHandler(this);
+
+        // Load config to get wavFilePath for cleanup and resolve output directory
+        var options = await _configService.LoadAsync();
+        var wavPath = options.WavFilePath;
+
+        // Place result in ~/Documents/VoxFlow/output/{inputName}.txt
+        var outputDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "VoxFlow", "output");
+        Directory.CreateDirectory(outputDir);
+        var resultFileName = Path.GetFileNameWithoutExtension(filePath) + ".txt";
+        var resultFilePath = Path.Combine(outputDir, resultFileName);
+
         try
         {
-            var request = new TranscribeFileRequest(filePath);
+            var request = new TranscribeFileRequest(filePath, ResultFilePath: resultFilePath);
             TranscriptionResult = await _transcriptionService.TranscribeFileAsync(request, progress, cts.Token);
+            if (TranscriptionResult.Success)
+            {
+                try { await Task.Delay(1500, cts.Token); }
+                catch (OperationCanceledException) { GoToReady(); return; }
+            }
             CurrentState = TranscriptionResult.Success ? AppState.Complete : AppState.Failed;
             if (!TranscriptionResult.Success)
                 ErrorMessage = string.Join("; ", TranscriptionResult.Warnings);
@@ -186,6 +204,7 @@ public class AppViewModel : INotifyPropertyChanged
                 _cts.Dispose();
                 _cts = null;
             }
+            CleanupTempFile(wavPath);
         }
         System.Diagnostics.Debug.WriteLine($"[AppViewModel] TranscribeFileAsync finished. State={CurrentState}");
     }
@@ -214,6 +233,21 @@ public class AppViewModel : INotifyPropertyChanged
     }
 
     public void CancelTranscription() => _cts?.Cancel();
+
+    private static void CleanupTempFile(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return;
+        try
+        {
+            File.Delete(path);
+            System.Diagnostics.Debug.WriteLine($"[AppViewModel] Deleted temp file: {path}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AppViewModel] Failed to delete temp file: {ex.Message}");
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public void NotifyStateChanged() => OnPropertyChanged(string.Empty);
