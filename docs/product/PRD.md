@@ -133,7 +133,7 @@ The following are explicitly out of scope:
 | **VoxFlow.Desktop** | .NET 9 MAUI Blazor Hybrid (macOS only) | Visual single-file transcription workflow |
 | **VoxFlow.McpServer** | .NET 9 console application (stdio) | MCP tool/prompt/resource exposure for AI clients |
 
-### Phase 1 Scope (Current)
+### Phase 1 Scope (Implemented)
 
 - Stable single-file transcription across all three surfaces
 - Batch transcription via CLI
