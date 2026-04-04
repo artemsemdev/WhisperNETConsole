@@ -80,7 +80,7 @@ internal static class Program
         Console.WriteLine("Starting transcription...");
 
         var transcriptionService = provider.GetRequiredService<ITranscriptionService>();
-        var progress = new CliProgressHandler();
+        var progress = new CliProgressHandler(options.ConsoleProgress);
         // The CLI host resolves its input path from configuration rather than command-line arguments.
         var request = new TranscribeFileRequest(options.InputFilePath);
         var result = await transcriptionService.TranscribeFileAsync(request, progress, cancellationToken);
@@ -92,6 +92,7 @@ internal static class Program
         }
 
         Console.WriteLine($"Done. Language: {result.DetectedLanguage}, Segments: {result.AcceptedSegmentCount}");
+        Console.WriteLine($"Result written to: {result.ResultFilePath}");
         return 0;
     }
 
@@ -103,7 +104,7 @@ internal static class Program
         Console.WriteLine("Starting batch processing...");
 
         var batchService = provider.GetRequiredService<IBatchTranscriptionService>();
-        var progress = new CliProgressHandler();
+        var progress = new CliProgressHandler(options.ConsoleProgress);
         var request = new BatchTranscribeRequest(
             options.Batch.InputDirectory,
             options.Batch.OutputDirectory,
