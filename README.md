@@ -4,6 +4,10 @@
 
 VoxFlow is a fully local, privacy-first audio transcription system that converts speech recordings into timestamped text transcripts without sending data to any external service. It ships as a shared .NET 9 transcription core with three hosts: CLI, macOS Desktop, and MCP. Transcription runs entirely on-device via Whisper.net, and the Desktop app can fall back to the same local CLI pipeline on Intel Mac Catalyst when the in-process Whisper runtime is not viable.
 
+## Demo
+
+![VoxFlow demo](docs/assets/voxflow-demo.gif)
+
 ## The Problem & The Solution
 
 **Problem:** Transcribing audio recordings manually is time-consuming and error-prone. Cloud-based transcription services raise privacy and compliance concerns, especially for sensitive recordings such as interviews, meetings, or legal proceedings.
