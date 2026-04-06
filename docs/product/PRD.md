@@ -390,7 +390,7 @@ The application must support processing multiple audio files from a configured i
 **Requirements:**
 
 - Batch mode is activated by setting `processingMode` to `"batch"` in configuration.
-- File discovery scans the configured input directory for files matching a configurable pattern (default: `*.m4a`), sorted alphabetically for deterministic ordering.
+- File discovery scans the configured input directory for audio files. The default pattern (`*`) discovers all supported formats (M4A, WAV, MP3, AAC, FLAC, OGG, AIF/AIFF, MP4). A specific pattern (e.g. `*.mp3`) can be configured to narrow discovery. Results are sorted alphabetically for deterministic ordering.
 - Empty or unreadable files are skipped. An empty match set is a failure.
 - Each file follows the full pipeline: convert, load WAV, transcribe, filter, write output.
 - Each input file produces its own result `.txt` file in the configured output directory.
@@ -611,7 +611,7 @@ The following settings must be configurable:
 | Dependency | Role | Acquisition |
 |---|---|---|
 | **.NET 9 runtime** | Application host | Pre-installed or bundled |
-| **ffmpeg** | Audio preprocessing (format conversion, noise filtering, silence removal) | Must be available on PATH or at the configured path. Not bundled. |
+| **ffmpeg** | Audio preprocessing — converts supported input formats (M4A, WAV, MP3, AAC, FLAC, OGG, AIF/AIFF, MP4) to normalized WAV, applies noise filtering and silence removal | Must be available on PATH or at the configured path. Not bundled. |
 | **Whisper model file** | Local speech-to-text inference | Downloaded automatically on first use if not already present. This is the only network operation. |
 | **Whisper.net** | .NET binding for Whisper inference | NuGet dependency, bundled at build time |
 

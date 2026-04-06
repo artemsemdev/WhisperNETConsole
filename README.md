@@ -23,6 +23,21 @@ VoxFlow is a fully local, privacy-first audio transcription system that converts
 - Teams operating under data-privacy or compliance constraints that prohibit cloud transcription
 - Developers and researchers who want a scriptable, configuration-driven transcription tool
 
+## Supported Input Formats
+
+VoxFlow accepts the following audio and video formats as input. All formats are converted to WAV via ffmpeg before transcription.
+
+| Format | Extension |
+|---|---|
+| MPEG-4 Audio | `.m4a` |
+| Waveform Audio | `.wav` |
+| MP3 | `.mp3` |
+| Advanced Audio Coding | `.aac` |
+| Free Lossless Audio Codec | `.flac` |
+| Ogg Vorbis | `.ogg` |
+| Audio Interchange File Format | `.aif`, `.aiff` |
+| MPEG-4 Video (audio track) | `.mp4` |
+
 ## Key Business Capabilities
 
 - **Single-file transcription** -- point the tool at one audio file and get a timestamped transcript
