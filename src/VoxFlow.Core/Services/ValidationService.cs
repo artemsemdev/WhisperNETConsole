@@ -92,6 +92,15 @@ internal sealed class ValidationService : IValidationService
             return new ValidationCheck("Input file", ValidationCheckStatus.Failed, $"Not found: {inputFilePath}");
         }
 
+        if (!SupportedInputFormats.IsSupported(inputFilePath))
+        {
+            var extension = Path.GetExtension(inputFilePath);
+            return new ValidationCheck(
+                "Input file",
+                ValidationCheckStatus.Failed,
+                $"Unsupported input format '{extension}'. Supported formats: {SupportedInputFormats.GetDisplaySummary()}.");
+        }
+
         return new ValidationCheck("Input file", ValidationCheckStatus.Passed, $"{inputFilePath} ({fileInfo.Length} bytes)");
     }
 

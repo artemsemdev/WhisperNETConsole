@@ -125,9 +125,9 @@ File input uses three parallel mechanisms for maximum compatibility:
 
 ### 3. Mac Catalyst Native UIDropInteraction
 
-Under `#if MACCATALYST`, `MainPage.xaml.cs` attaches `UIDropInteraction` with a `NativeFileDropDelegate` to WKWebView and its ScrollView. Supports multiple UTI type identifiers (`public.file-url`, `com.apple.file-url`, `public.audio`, etc.) for drag sources. Resolves file paths from `NSItemProvider` and validates against supported audio formats.
+Under `#if MACCATALYST`, `MainPage.xaml.cs` attaches `UIDropInteraction` with a `NativeFileDropDelegate` to WKWebView and its ScrollView. Supports multiple UTI type identifiers (`public.file-url`, `com.apple.file-url`, `public.audio`, etc.) for drag sources. Resolves file paths from `NSItemProvider` and validates against the shared `SupportedInputFormats` registry in VoxFlow.Core.
 
-**Supported audio formats:** `.m4a`, `.wav`, `.mp3`, `.aac`, `.flac`, `.ogg`, `.aif`, `.aiff`, `.mp4`, `.m4b`
+**Supported audio formats:** M4A, WAV, MP3, AAC, FLAC, OGG, AIF/AIFF, MP4 (defined centrally in `VoxFlow.Core/Configuration/SupportedInputFormats.cs`)
 
 Browser-dropped files are staged into a temp directory (`voxflow-drop-{guid}/`) before transcription. Native drops resolve the file path directly.
 

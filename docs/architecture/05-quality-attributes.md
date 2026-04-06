@@ -66,12 +66,12 @@
 
 ## Maintainability
 
-**Scenario:** A developer needs to add support for a new audio format (e.g., `.mp3` input).
+**Scenario:** A developer needs to add support for a new audio format.
 
-**Response:** The change is localized:
-1. Add the format to FileDiscoveryService's pattern matching
-2. Ensure ffmpeg supports the format (it already does)
-3. No changes needed to inference, filtering, or output — those stages work with WAV samples regardless of the original format
+**Response:** The change is localized to a single file:
+1. Add the extension to `SupportedInputFormats.Extensions` in `VoxFlow.Core/Configuration/SupportedInputFormats.cs`
+2. Ensure ffmpeg supports the format (it already does for all common audio/video containers)
+3. No changes needed to inference, filtering, output, CLI, Desktop, or MCP — all surfaces consume the shared format registry automatically
 
 **Scenario:** A developer needs to add a fourth host (e.g., a web API).
 

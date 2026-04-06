@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-VoxFlow is a fully local, privacy-first audio transcription system that converts speech recordings into timestamped text transcripts without sending data to any external service. It ships as a shared .NET 9 transcription core with three hosts: CLI, macOS Desktop, and MCP. Transcription runs entirely on-device via Whisper.net, and the Desktop app can fall back to the same local CLI pipeline on Intel Mac Catalyst when the in-process Whisper runtime is not viable.
+VoxFlow is a fully local, privacy-first audio transcription system that converts speech recordings into timestamped text transcripts without sending data to any external service. It ships as a shared .NET 9 transcription core with three hosts: CLI, macOS Desktop, and MCP. By default, transcription runs entirely on-device via the local Whisper Base model through Whisper.net, and the Desktop app can fall back to the same local CLI pipeline on Intel Mac Catalyst when the in-process Whisper runtime is not viable.
 
 ## Demo
 
@@ -15,13 +15,28 @@ VoxFlow is a fully local, privacy-first audio transcription system that converts
 
 **Problem:** Transcribing audio recordings manually is time-consuming and error-prone. Cloud-based transcription services raise privacy and compliance concerns, especially for sensitive recordings such as interviews, meetings, or legal proceedings.
 
-**Solution:** This utility runs the entire transcription pipeline locally on the user's machine. Audio files are preprocessed, noise-filtered, and transcribed using a local Whisper model. The result is a clean, timestamped transcript file ready for review or downstream processing.
+**Solution:** This utility runs the entire transcription pipeline locally on the user's machine. Audio files are preprocessed, noise-filtered, and transcribed using a local Whisper model, with Whisper Base configured by default. The result is a clean, timestamped transcript file ready for review or downstream processing.
 
 ## Target Audience
 
 - Professionals who need transcripts of meetings, interviews, or recorded calls
 - Teams operating under data-privacy or compliance constraints that prohibit cloud transcription
 - Developers and researchers who want a scriptable, configuration-driven transcription tool
+
+## Supported Input Formats
+
+VoxFlow accepts the following audio and video formats as input. All formats are converted to WAV via ffmpeg before transcription.
+
+| Format | Extension |
+|---|---|
+| MPEG-4 Audio | `.m4a` |
+| Waveform Audio | `.wav` |
+| MP3 | `.mp3` |
+| Advanced Audio Coding | `.aac` |
+| Free Lossless Audio Codec | `.flac` |
+| Ogg Vorbis | `.ogg` |
+| Audio Interchange File Format | `.aif`, `.aiff` |
+| MPEG-4 Video (audio track) | `.mp4` |
 
 ## Key Business Capabilities
 
@@ -43,7 +58,7 @@ VoxFlow is a .NET 9 solution with one shared processing library and three hosts:
 - `VoxFlow.Desktop` -- macOS MAUI Blazor Hybrid desktop host for single-file transcription workflow; on Intel Mac Catalyst it delegates transcription to a local CLI bridge
 - `VoxFlow.McpServer` -- stdio MCP host exposing transcription tools to AI clients
 
-The shared pipeline remains configuration loading, startup validation, ffmpeg-based audio conversion, local Whisper inference via Whisper.net 1.9.0, post-processing filters, and file output.
+The shared pipeline remains configuration loading, startup validation, ffmpeg-based audio conversion, local Whisper Base inference via Whisper.net 1.9.0 by default, post-processing filters, and file output.
 
 ## Current Repository Status
 

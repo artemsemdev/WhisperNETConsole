@@ -222,4 +222,115 @@ public sealed class FileDiscoveryServiceTests
         var exception = Assert.Throws<InvalidOperationException>(() => service.DiscoverInputFiles(options));
         Assert.Contains("not found", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void DiscoverInputFiles_WildcardPattern_DiscoversAllSupportedFormats()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        var outputDir = Path.Combine(directory.Path, "output");
+        Directory.CreateDirectory(inputDir);
+        Directory.CreateDirectory(outputDir);
+
+        File.WriteAllText(Path.Combine(inputDir, "audio.m4a"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "audio.wav"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "audio.mp3"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "audio.aac"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "audio.flac"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "audio.ogg"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "audio.aiff"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "audio.mp4"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "readme.txt"), "not audio");
+        File.WriteAllText(Path.Combine(inputDir, "notes.pdf"), "not audio");
+
+        var options = new BatchOptions(
+            InputDirectory: inputDir,
+            OutputDirectory: outputDir,
+            TempDirectory: directory.Path,
+            FilePattern: "*",
+            StopOnFirstError: false,
+            KeepIntermediateFiles: false,
+            SummaryFilePath: "summary.txt");
+
+        var service = new FileDiscoveryService();
+        var files = service.DiscoverInputFiles(options);
+
+        Assert.Equal(8, files.Count);
+        Assert.All(files, f => Assert.Equal(DiscoveryStatus.Ready, f.Status));
+        Assert.DoesNotContain(files, f => f.InputPath.EndsWith(".txt"));
+        Assert.DoesNotContain(files, f => f.InputPath.EndsWith(".pdf"));
+    }
+
+    [Fact]
+    public void DiscoverInputFiles_WildcardPattern_DoesNotDuplicateFiles()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        Directory.CreateDirectory(inputDir);
+
+        File.WriteAllText(Path.Combine(inputDir, "recording.mp3"), "data");
+
+        var options = new BatchOptions(
+            InputDirectory: inputDir,
+            OutputDirectory: directory.Path,
+            TempDirectory: directory.Path,
+            FilePattern: "*",
+            StopOnFirstError: false,
+            KeepIntermediateFiles: false,
+            SummaryFilePath: "summary.txt");
+
+        var service = new FileDiscoveryService();
+        var files = service.DiscoverInputFiles(options);
+
+        Assert.Single(files);
+    }
+
+    [Fact]
+    public void DiscoverInputFiles_WildcardPattern_NoSupportedFiles_Throws()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        Directory.CreateDirectory(inputDir);
+
+        File.WriteAllText(Path.Combine(inputDir, "readme.txt"), "not audio");
+
+        var options = new BatchOptions(
+            InputDirectory: inputDir,
+            OutputDirectory: directory.Path,
+            TempDirectory: directory.Path,
+            FilePattern: "*",
+            StopOnFirstError: false,
+            KeepIntermediateFiles: false,
+            SummaryFilePath: "summary.txt");
+
+        var service = new FileDiscoveryService();
+        var exception = Assert.Throws<InvalidOperationException>(() => service.DiscoverInputFiles(options));
+        Assert.Contains("No files matching", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DiscoverInputFiles_WildcardPattern_RespectsMaxFiles()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        Directory.CreateDirectory(inputDir);
+
+        File.WriteAllText(Path.Combine(inputDir, "a.mp3"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "b.wav"), "data");
+        File.WriteAllText(Path.Combine(inputDir, "c.flac"), "data");
+
+        var options = new BatchOptions(
+            InputDirectory: inputDir,
+            OutputDirectory: directory.Path,
+            TempDirectory: directory.Path,
+            FilePattern: "*",
+            StopOnFirstError: false,
+            KeepIntermediateFiles: false,
+            SummaryFilePath: "summary.txt");
+
+        var service = new FileDiscoveryService();
+        var files = service.DiscoverInputFiles(options, maxFiles: 2);
+
+        Assert.Equal(2, files.Count);
+    }
 }

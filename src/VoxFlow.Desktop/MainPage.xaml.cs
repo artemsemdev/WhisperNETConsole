@@ -2,6 +2,7 @@ using Foundation;
 using Microsoft.AspNetCore.Components.WebView;
 using Microsoft.Maui.Controls;
 using System.Linq;
+using VoxFlow.Core.Configuration;
 using VoxFlow.Desktop.Services;
 using VoxFlow.Desktop.ViewModels;
 
@@ -403,18 +404,5 @@ public partial class MainPage : ContentPage
         return File.Exists(value) ? Path.GetFullPath(value) : null;
     }
 
-    private static bool IsSupportedAudioFile(string filePath)
-    {
-        var extension = Path.GetExtension(filePath);
-        return extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".aac", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".flac", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".ogg", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".aif", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".aiff", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".m4b", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsSupportedAudioFile(string filePath) => SupportedInputFormats.IsSupported(filePath);
 }

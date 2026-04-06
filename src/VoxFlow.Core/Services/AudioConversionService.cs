@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VoxFlow.Core.Configuration;
@@ -26,6 +25,13 @@ internal sealed class AudioConversionService : IAudioConversionService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!SupportedInputFormats.IsSupported(inputPath))
+        {
+            var extension = Path.GetExtension(inputPath);
+            throw new InvalidOperationException(
+                $"Unsupported input format '{extension}'. Supported formats: {SupportedInputFormats.GetDisplaySummary()}.");
+        }
 
         var startInfo = CreateFfmpegStartInfo(options.FfmpegExecutablePath);
 
