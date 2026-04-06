@@ -1,3 +1,4 @@
+@using VoxFlow.Core.Configuration
 @using VoxFlow.Desktop.Platform
 @inject IJSRuntime JS
 
@@ -41,7 +42,7 @@
            class="drop-zone-file-input"
            aria-hidden="true"
            tabindex="-1"
-           accept=".m4a,.wav,.mp3,.aac,.flac,.ogg,.aif,.aiff,.mp4,.m4b,audio/*"
+           accept="@SupportedInputFormats.HtmlAcceptString"
            OnChange="HandleBrowserFilesSelected" />
 
 @if (!string.IsNullOrWhiteSpace(_selectionError))
@@ -116,7 +117,7 @@
         try
         {
             var file = args.File;
-            if (!IsSupportedAudioFile(file.Name))
+            if (!SupportedInputFormats.IsSupported(file.Name))
             {
                 _selectionError = $"Unsupported audio file: {file.Name}";
                 return;
@@ -131,21 +132,6 @@
             _selectionError = $"File drop failed: {ex.Message}";
             System.Diagnostics.Debug.WriteLine($"[DropZone] Browser file drop failed: {ex}");
         }
-    }
-
-    private static bool IsSupportedAudioFile(string fileName)
-    {
-        var extension = Path.GetExtension(fileName);
-        return extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".aac", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".flac", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".ogg", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".aif", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".aiff", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
-               extension.Equals(".m4b", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task<string> SaveBrowserFileToTemporaryPathAsync(IBrowserFile file)

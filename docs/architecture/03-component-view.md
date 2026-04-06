@@ -206,7 +206,7 @@ All 13 interfaces are registered through `AddVoxFlowCore()`. Hosts consume them 
 | Check | Mode | What it validates |
 |-------|------|-------------------|
 | Settings file | Both | Resolved configuration path |
-| Input file | Single | Input .m4a exists |
+| Input file | Single | Input file exists and has a supported format (M4A, WAV, MP3, AAC, FLAC, OGG, AIF/AIFF, MP4) |
 | Output directory | Single | Output directory exists and is writable |
 | ffmpeg availability | Both | `ffmpeg -version` succeeds |
 | Model type | Both | Configured model type is a valid GGML type |
@@ -234,7 +234,7 @@ All 13 interfaces are registered through `AddVoxFlowCore()`. Hosts consume them 
 **Responsibility:** Invoke ffmpeg to convert input audio to filtered mono 16kHz WAV.
 
 **Key behaviors:**
-- Validates input file existence before conversion
+- Validates input file format against `SupportedInputFormats` before conversion; rejects unsupported formats with a clear error listing accepted extensions
 - Validates ffmpeg availability (separate from startup validation — can be called independently)
 - Builds ffmpeg command line from configuration (audio filters, codec settings)
 - Manages ffmpeg child process lifecycle including cancellation (kills process on token cancellation)
@@ -365,7 +365,7 @@ Model file missing?          → Download
 **Responsibility:** Discover input files for batch processing.
 
 **Key behaviors:**
-- Scans configured input directory with file pattern (e.g., `*.m4a`)
+- Scans configured input directory with file pattern; the default wildcard pattern (`*`) discovers all formats listed in `SupportedInputFormats` (M4A, WAV, MP3, AAC, FLAC, OGG, AIF/AIFF, MP4). A specific pattern (e.g., `*.mp3`) narrows discovery to that format.
 - Computes output path and temp WAV path for each file
 - Alphabetical sorting for deterministic processing order
 - Filters empty files (marked as Skipped)

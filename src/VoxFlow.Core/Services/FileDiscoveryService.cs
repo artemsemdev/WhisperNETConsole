@@ -16,6 +16,8 @@ internal sealed class FileDiscoveryService : IFileDiscoveryService
 {
     /// <summary>
     /// Scans the configured input directory for files matching the batch file pattern.
+    /// When the file pattern is the multi-format wildcard ("*"), all supported audio
+    /// formats are discovered automatically using <see cref="SupportedInputFormats"/>.
     /// </summary>
     public IReadOnlyList<DiscoveredFile> DiscoverInputFiles(BatchOptions batchOptions, int? maxFiles = null)
     {
@@ -31,7 +33,7 @@ internal sealed class FileDiscoveryService : IFileDiscoveryService
             throw new InvalidOperationException($"Batch input directory not found: {batchOptions.InputDirectory}");
         }
 
-        IEnumerable<string> matchingFiles = Directory.EnumerateFiles(batchOptions.InputDirectory, batchOptions.FilePattern)
+        IEnumerable<string> matchingFiles = EnumerateMatchingFiles(batchOptions)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
 
         if (maxFiles.HasValue)
@@ -66,5 +68,22 @@ internal sealed class FileDiscoveryService : IFileDiscoveryService
         }
 
         return discoveredFiles;
+    }
+
+    /// <summary>
+    /// Returns matching file paths for the configured batch options.
+    /// The special pattern "*" triggers multi-format discovery across all
+    /// extensions defined in <see cref="SupportedInputFormats"/>.
+    /// </summary>
+    private static IEnumerable<string> EnumerateMatchingFiles(BatchOptions batchOptions)
+    {
+        if (batchOptions.FilePattern == "*")
+        {
+            return SupportedInputFormats.GlobPatterns
+                .SelectMany(pattern => Directory.EnumerateFiles(batchOptions.InputDirectory, pattern))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return Directory.EnumerateFiles(batchOptions.InputDirectory, batchOptions.FilePattern);
     }
 }

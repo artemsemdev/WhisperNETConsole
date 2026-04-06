@@ -273,7 +273,7 @@ public sealed class TranscriptionOptions
 
         var inputDirectory = RequireValue(configuration.InputDirectory, nameof(configuration.InputDirectory));
         var outputDirectory = RequireValue(configuration.OutputDirectory, nameof(configuration.OutputDirectory));
-        var filePattern = string.IsNullOrWhiteSpace(configuration.FilePattern) ? "*.m4a" : configuration.FilePattern.Trim();
+        var filePattern = string.IsNullOrWhiteSpace(configuration.FilePattern) ? "*" : configuration.FilePattern.Trim();
         var tempDirectory = string.IsNullOrWhiteSpace(configuration.TempDirectory)
             ? Path.GetTempPath()
             : configuration.TempDirectory.Trim();
@@ -484,7 +484,7 @@ public sealed record BatchOptions(
         InputDirectory: string.Empty,
         OutputDirectory: string.Empty,
         TempDirectory: string.Empty,
-        FilePattern: "*.m4a",
+        FilePattern: "*",
         StopOnFirstError: false,
         KeepIntermediateFiles: false,
         SummaryFilePath: string.Empty);

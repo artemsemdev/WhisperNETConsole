@@ -224,18 +224,25 @@ The application must run a configurable preflight validation stage before transc
 
 The application must convert input audio files to WAV format before transcription.
 
+**Supported input formats:** M4A, WAV, MP3, AAC, FLAC, OGG, AIF/AIFF, MP4.
+
+All supported formats are defined centrally in `SupportedInputFormats` and shared across CLI (single and batch), Desktop, and MCP surfaces. ffmpeg performs conversion to the normalized WAV format required by Whisper.
+
 **Requirements:**
 
 - Output WAV must be mono, 16000 Hz, WAV container.
 - Conversion must use a configurable ffmpeg audio-filter chain for noise reduction and silence removal.
 - The default filter chain applies noise filtering (`afftdn=nf=-25`) and silence removal (`silenceremove=stop_periods=-1:stop_threshold=-50dB:stop_duration=1`).
 - Conversion errors must produce clear, actionable diagnostics.
+- Unsupported input formats must be rejected with a clear error message listing accepted formats.
+- Batch mode discovers all supported formats by default (filePattern: `*`). A specific pattern (e.g. `*.mp3`) can still be configured to narrow discovery.
 
 **Acceptance criteria:**
 
 - The pipeline does not proceed to inference if audio conversion fails.
 - Applied audio filters are logged for diagnostic visibility.
 - The filter chain can be customized entirely through configuration without code changes.
+- Passing an unsupported file format produces an actionable error naming the supported formats.
 
 ---
 

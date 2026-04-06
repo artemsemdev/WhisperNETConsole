@@ -148,7 +148,7 @@ public sealed class BatchConfigurationTests
         var options = TranscriptionOptions.LoadFromPath(settingsPath);
 
         Assert.True(options.IsBatchMode);
-        Assert.Equal("*.m4a", options.Batch.FilePattern);
+        Assert.Equal("*", options.Batch.FilePattern);
         Assert.False(options.Batch.StopOnFirstError);
         Assert.False(options.Batch.KeepIntermediateFiles);
         Assert.Equal("batch-summary.txt", options.Batch.SummaryFilePath);
