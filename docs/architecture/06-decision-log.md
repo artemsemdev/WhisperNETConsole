@@ -1,6 +1,8 @@
 # Architecture Decision Log
 
 > ADR-style records for the most significant design decisions. Each record includes the decision, context, alternatives considered, and trade-offs accepted.
+>
+> This log contains ADR-001 through ADR-023. Newer ADRs may be published as standalone files under `docs/adr/`.
 
 ## Index
 

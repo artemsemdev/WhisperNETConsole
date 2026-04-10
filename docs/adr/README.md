@@ -4,11 +4,13 @@ VoxFlow maintains architecture decision records (ADRs) as part of the architectu
 
 ## Where ADRs Live
 
-All ADRs are maintained in a single decision log:
+Legacy ADRs are maintained in the monolithic decision log:
 
 **[docs/architecture/06-decision-log.md](../architecture/06-decision-log.md)**
 
-The decision log contains 23 ADR entries (ADR-001 through ADR-023) covering decisions from the initial console architecture through the multi-host Core extraction and Desktop app.
+That log contains ADR-001 through ADR-023, covering decisions from the initial console architecture through the multi-host Core extraction and Desktop app.
+
+New ADRs may also be added as standalone files in `docs/adr/` when a separate reviewable document is preferable.
 
 ## ADR Format
 
@@ -47,5 +49,7 @@ Each record includes:
 | 021 | Blazor Hybrid for macOS desktop UI | Accepted |
 | 022 | ViewModel-driven desktop state flow | Accepted |
 | 023 | Eliminate InternalsVisibleTo in favor of shared library | Accepted |
+| [024](024-local-speaker-labeling-pipeline.md) | Local speaker labeling pipeline for English transcription | Accepted |
+| [025](025-gemma-4-intelligence-layer.md) | Gemma 4 as an optional local intelligence layer | Accepted |
 
-For the full record text of each ADR, see the [decision log](../architecture/06-decision-log.md).
+For the full record text of ADR-001 through ADR-023, see the [decision log](../architecture/06-decision-log.md). ADR-024 and later may live as standalone files in this directory.
