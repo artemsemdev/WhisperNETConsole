@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Models;
 using VoxFlow.Core.Services;
 using Xunit;
@@ -10,6 +11,8 @@ namespace VoxFlow.Core.Tests;
 
 public sealed class OutputWriterTests
 {
+    private static readonly TranscriptOutputContext TxtContext = new(ResultFormat.Txt);
+
     [Fact]
     public void BuildOutputText_UsesLegacyTimestampFormat()
     {
@@ -23,7 +26,7 @@ public sealed class OutputWriterTests
         };
 
         var writer = new OutputWriter();
-        var output = writer.BuildOutputText(segments);
+        var output = writer.BuildOutputText(segments, TxtContext);
 
         Assert.Equal("00:00:01->00:00:02: Hello" + Environment.NewLine, output);
     }
@@ -41,7 +44,7 @@ public sealed class OutputWriterTests
         };
 
         var writer = new OutputWriter();
-        var output = writer.BuildOutputText(segments);
+        var output = writer.BuildOutputText(segments, TxtContext);
 
         Assert.Contains("00:00:01.2000000->00:00:03.8000000: Test", output);
     }
@@ -50,7 +53,7 @@ public sealed class OutputWriterTests
     public void BuildOutputText_ReturnsEmptyStringForNoSegments()
     {
         var writer = new OutputWriter();
-        var output = writer.BuildOutputText(Array.Empty<FilteredSegment>());
+        var output = writer.BuildOutputText(Array.Empty<FilteredSegment>(), TxtContext);
 
         Assert.Equal(string.Empty, output);
     }
@@ -66,7 +69,7 @@ public sealed class OutputWriterTests
         };
 
         var writer = new OutputWriter();
-        var output = writer.BuildOutputText(segments);
+        var output = writer.BuildOutputText(segments, TxtContext);
 
         var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(3, lines.Length);
@@ -86,7 +89,7 @@ public sealed class OutputWriterTests
         };
 
         var writer = new OutputWriter();
-        await writer.WriteAsync(resultPath, segments);
+        await writer.WriteAsync(resultPath, segments, TxtContext);
 
         var bytes = await File.ReadAllBytesAsync(resultPath);
         // UTF-8 BOM is EF BB BF; verify it's absent.
@@ -111,7 +114,7 @@ public sealed class OutputWriterTests
         await cancellationTokenSource.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => writer.WriteAsync(resultPath, segments, cancellationTokenSource.Token));
+            () => writer.WriteAsync(resultPath, segments, TxtContext, cancellationTokenSource.Token));
 
         Assert.False(File.Exists(resultPath));
     }

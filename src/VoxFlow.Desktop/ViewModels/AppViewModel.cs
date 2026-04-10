@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
 using VoxFlow.Desktop.Services;
@@ -23,6 +24,7 @@ public class AppViewModel : INotifyPropertyChanged
     private string? _errorMessage;
     private string? _lastFilePath;
     private CancellationTokenSource? _cts;
+    private ResultFormat _selectedResultFormat = ResultFormat.Txt;
 
     public AppViewModel(
         ITranscriptionService transcriptionService,
@@ -36,6 +38,20 @@ public class AppViewModel : INotifyPropertyChanged
         _transcriptionService = transcriptionService;
         _validationService = validationService;
         _configService = configService;
+    }
+
+    /// <summary>
+    /// The currently selected transcript output format.
+    /// </summary>
+    public ResultFormat SelectedResultFormat
+    {
+        get => _selectedResultFormat;
+        set
+        {
+            if (_selectedResultFormat == value) return;
+            _selectedResultFormat = value;
+            OnPropertyChanged();
+        }
     }
 
     public AppState CurrentState
@@ -132,6 +148,7 @@ public class AppViewModel : INotifyPropertyChanged
     public async Task InitializeAsync()
     {
         var options = await _configService.LoadAsync();
+        SelectedResultFormat = options.ResultFormat;
         var result = await _validationService.ValidateAsync(options);
         ValidationResult = result;
         CurrentState = AppState.Ready;
@@ -165,12 +182,13 @@ public class AppViewModel : INotifyPropertyChanged
         var options = await _configService.LoadAsync();
         var wavPath = options.WavFilePath;
 
-        // Place result in ~/Documents/VoxFlow/output/{inputName}.txt
+        // Place result in ~/Documents/VoxFlow/output/{inputName}.{ext}
         var outputDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "VoxFlow", "output");
         Directory.CreateDirectory(outputDir);
-        var resultFileName = Path.GetFileNameWithoutExtension(filePath) + ".txt";
+        var resultExtension = options.ResultFormat.ToFileExtension();
+        var resultFileName = Path.GetFileNameWithoutExtension(filePath) + resultExtension;
         var resultFilePath = Path.Combine(outputDir, resultFileName);
 
         try

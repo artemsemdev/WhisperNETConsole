@@ -927,6 +927,119 @@ button {
     to { transform: scale(1); }
 }
 
+/* ---------- Settings Panel ---------- */
+.settings-panel {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 20px;
+}
+
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: var(--font-family);
+    cursor: pointer;
+    transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.settings-toggle:hover {
+    color: var(--text-secondary);
+    border-color: var(--drop-zone-border);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.settings-toggle-label {
+    flex: 1;
+    text-align: left;
+}
+
+.settings-chevron {
+    transition: transform var(--transition-fast);
+}
+
+.settings-chevron-open {
+    transform: rotate(180deg);
+}
+
+.settings-content {
+    margin-top: 8px;
+    padding: 16px;
+    background: rgba(22, 33, 62, 0.5);
+    border: 1px solid var(--border);
+    border-radius: var(--border-radius);
+    animation: settings-slide 0.15s ease-out;
+}
+
+@keyframes settings-slide {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.settings-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.settings-select {
+    flex: 1;
+    max-width: 200px;
+    padding: 6px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: var(--font-family);
+    cursor: pointer;
+    outline: none;
+    transition: border-color var(--transition-fast);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.settings-select:hover:not(:disabled) {
+    border-color: var(--drop-zone-border);
+}
+
+.settings-select:focus {
+    border-color: var(--accent);
+}
+
+.settings-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.settings-save-status {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--success);
+    text-align: right;
+    animation: settings-fade 0.2s ease-out;
+}
+
+@keyframes settings-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 /* ---------- Blazor Error UI ---------- */
 #blazor-error-ui {
     background: var(--bg-secondary);

@@ -45,6 +45,7 @@ public sealed class TranscriptionOptions
     public int MaxDuplicateSegmentTextLength { get; }
     public StartupValidationOptions StartupValidation { get; }
     public ConsoleProgressOptions ConsoleProgress { get; }
+    public ResultFormat ResultFormat { get; }
     public BatchOptions Batch { get; }
 
     /// <summary>
@@ -100,6 +101,7 @@ public sealed class TranscriptionOptions
         MaxDuplicateSegmentTextLength = EnsurePositive(
             configuration.MaxDuplicateSegmentTextLength,
             nameof(configuration.MaxDuplicateSegmentTextLength));
+        ResultFormat = ResultFormatExtensions.ParseFormat(configuration.ResultFormat);
         StartupValidation = CreateStartupValidationOptions(configuration.StartupValidation);
         ConsoleProgress = CreateConsoleProgressOptions(configuration.ConsoleProgress);
         Batch = IsBatchMode ? CreateBatchOptions(configuration.Batch) : BatchOptions.Disabled;
@@ -372,6 +374,7 @@ public sealed class TranscriptionSettingsRoot
 public sealed class TranscriptionConfiguration
 {
     public string? ProcessingMode { get; set; }
+    public string? ResultFormat { get; set; }
     public string? InputFilePath { get; set; }
     public string? WavFilePath { get; set; }
     public string? ResultFilePath { get; set; }

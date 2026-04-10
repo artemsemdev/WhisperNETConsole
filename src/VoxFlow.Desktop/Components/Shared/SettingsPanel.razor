@@ -1,0 +1,107 @@
+@using VoxFlow.Core.Configuration
+@inject AppViewModel ViewModel
+@inject DesktopConfigurationService ConfigService
+
+<div class="settings-panel" id="settings-panel" aria-label="Settings Panel">
+    <button class="settings-toggle" id="settings-toggle-button"
+            aria-label="@(_isExpanded ? "Close settings" : "Open settings")"
+            aria-expanded="@_isExpanded.ToString().ToLowerInvariant()"
+            title="Settings"
+            @onclick="ToggleSettings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M6.5 1.5h3l.4 1.8.5.2 1.6-.8 2.1 2.1-.8 1.6.2.5 1.8.4v3l-1.8.4-.2.5.8 1.6-2.1 2.1-1.6-.8-.5.2-.4 1.8h-3l-.4-1.8-.5-.2-1.6.8-2.1-2.1.8-1.6-.2-.5L.7 9.5v-3l1.8-.4.2-.5-.8-1.6L4 1.9l1.6.8.5-.2.4-1.2z"
+                  stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" />
+            <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.1" />
+        </svg>
+        <span class="settings-toggle-label">Settings</span>
+        <svg class="settings-chevron @(_isExpanded ? "settings-chevron-open" : "")"
+             width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.2"
+                  stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </button>
+
+    @if (_isExpanded)
+    {
+        <div class="settings-content" id="settings-content">
+            <div class="settings-field">
+                <label class="settings-label" for="result-format-select">Output Format</label>
+                <select id="result-format-select"
+                        class="settings-select"
+                        aria-label="Transcript output format"
+                        disabled="@IsDisabled"
+                        value="@ViewModel.SelectedResultFormat.ToString().ToLowerInvariant()"
+                        @onchange="HandleFormatChanged">
+                    <option value="txt">TXT (Plain text)</option>
+                    <option value="srt">SRT (Subtitles)</option>
+                    <option value="vtt">VTT (WebVTT)</option>
+                    <option value="json">JSON (Structured)</option>
+                    <option value="md">MD (Markdown)</option>
+                </select>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(_saveStatus))
+            {
+                <div class="settings-save-status" id="settings-save-status"
+                     aria-live="polite">@_saveStatus</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public bool IsDisabled { get; set; }
+
+    private bool _isExpanded;
+    private string? _saveStatus;
+    private CancellationTokenSource? _statusResetCts;
+
+    private void ToggleSettings()
+    {
+        _isExpanded = !_isExpanded;
+        _saveStatus = null;
+    }
+
+    private async Task HandleFormatChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        var format = ResultFormatExtensions.TryParseFormat(value);
+        if (format is null) return;
+
+        ViewModel.SelectedResultFormat = format.Value;
+
+        try
+        {
+            await ConfigService.SaveUserOverridesAsync(new Dictionary<string, object>
+            {
+                ["resultFormat"] = format.Value.ToString().ToLowerInvariant()
+            });
+            ShowSaveStatus("Saved");
+        }
+        catch (Exception ex)
+        {
+            ShowSaveStatus($"Save failed: {ex.Message}");
+        }
+    }
+
+    private void ShowSaveStatus(string message)
+    {
+        _saveStatus = message;
+        _statusResetCts?.Cancel();
+        _statusResetCts?.Dispose();
+        _statusResetCts = new CancellationTokenSource();
+        _ = ResetSaveStatusAsync(_statusResetCts.Token);
+    }
+
+    private async Task ResetSaveStatusAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(2000, ct);
+            _saveStatus = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+    }
+}

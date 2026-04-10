@@ -37,7 +37,8 @@ internal static class TestSettingsFileFactory
         int maxConsecutiveDuplicateSegments = 2,
         int maxDuplicateSegmentTextLength = 32,
         string processingMode = "single",
-        object? batch = null)
+        object? batch = null,
+        string? resultFormat = null)
     {
         supportedLanguages ??=
         [
@@ -80,6 +81,7 @@ internal static class TestSettingsFileFactory
         var transcription = new Dictionary<string, object?>
         {
             ["processingMode"] = processingMode,
+            ["resultFormat"] = resultFormat,
             ["inputFilePath"] = inputFilePath,
             ["wavFilePath"] = wavFilePath,
             ["resultFilePath"] = resultFilePath,
