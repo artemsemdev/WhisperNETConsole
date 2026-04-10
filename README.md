@@ -52,7 +52,7 @@ VoxFlow accepts the following audio and video formats as input. All formats are 
 
 ## Output Formats
 
-VoxFlow supports multiple transcript output formats, configured via the `resultFormat` field in `appsettings.json`. The default is `txt` for backward compatibility.
+VoxFlow supports multiple transcript output formats. The default is `txt` for backward compatibility.
 
 | Format | Extension | Description |
 |---|---|---|
@@ -61,18 +61,6 @@ VoxFlow supports multiple transcript output formats, configured via the `resultF
 | `vtt` | `.vtt` | WebVTT subtitle format with `WEBVTT` header and `HH:mm:ss.mmm` timestamps. |
 | `json` | `.json` | Structured JSON with metadata (language, segment counts, warnings) and transcript segments. |
 | `md` | `.md` | Human-readable Markdown with metadata header and timestamped transcript entries. |
-
-To change the format, set `transcription.resultFormat` in your configuration:
-
-```json
-{
-  "transcription": {
-    "resultFormat": "srt"
-  }
-}
-```
-
-Desktop users can also change the output format from the Settings panel on the Ready screen.
 
 ## High-Level Architecture
 
