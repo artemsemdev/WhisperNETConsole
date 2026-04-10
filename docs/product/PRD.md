@@ -118,7 +118,7 @@ The following are explicitly out of scope:
 - HTTP or SSE MCP transport (stdio only, for local-first security)
 - MCP server as a long-lived daemon (it runs only when launched by an MCP client)
 - Batch-processing UI in the Desktop app (batch processing exists in the pipeline but Desktop is a single-file workflow)
-- Desktop settings editor UI (configuration overrides remain file-based)
+- Full-featured Desktop settings editor UI (only output format selection is available; other overrides remain file-based)
 
 ---
 
@@ -144,7 +144,7 @@ The following are explicitly out of scope:
 ### Deferred to Future Phases
 
 - Desktop batch-processing UI
-- Desktop settings editor
+- Full Desktop settings editor (output format selection is implemented; other settings remain file-based)
 - Multi-file Desktop workflow
 - Windows and Linux desktop
 - Additional MCP transports
@@ -356,30 +356,36 @@ The application must support graceful cancellation of long-running work.
 
 ### FR-08: Result Output
 
-The application must write accepted transcript segments to the configured result file.
+The application must write accepted transcript segments to the configured result file in the selected output format.
+
+**Supported output formats:**
+
+| Format | Extension | Description |
+|---|---|---|
+| `txt` | `.txt` | Legacy timestamped text (default). Each line: `{start}->{end}: {text}` |
+| `srt` | `.srt` | SubRip subtitle format with numbered cues and `HH:mm:ss,mmm` timestamps |
+| `vtt` | `.vtt` | WebVTT subtitle format with `WEBVTT` header and `HH:mm:ss.mmm` timestamps |
+| `json` | `.json` | Structured JSON with metadata (language, counts, warnings) and transcript segments |
+| `md` | `.md` | Human-readable Markdown with metadata header and timestamped entries |
 
 **Requirements:**
 
-- Output encoding must be UTF-8.
-- Each transcript line must use the following timestamped format:
-
-```text
-{start}->{end}: {text}
-```
-
-Example:
-
-```text
-00:00:01.2000000->00:00:03.8000000: Hello, this is a test.
-```
-
+- Output encoding must be UTF-8 for all formats.
+- The output format is selected via `transcription.resultFormat` in configuration. If missing, defaults to `txt`.
+- Parsing must be case-insensitive. Unsupported values must be rejected with a clear, actionable error message.
+- The `txt` format preserves the existing legacy timestamped format exactly for backward compatibility.
+- The output file extension must match the selected format. Mismatched extensions are normalized automatically.
+- In batch mode, all per-file outputs use the selected format's extension.
+- Desktop users can select the output format from the Settings panel on the Ready screen. The selection persists through the Desktop user override mechanism.
 - If the run is rejected due to unsupported or ambiguous language, the application must not produce misleading transcript output.
-- This output format is a stable external contract and must not change without a versioned migration.
+- The `txt` output format remains a stable external contract and must not change without a versioned migration.
 
 **Acceptance criteria:**
 
-- Output files are valid UTF-8 with consistent timestamp formatting.
+- Output files are valid UTF-8 with format-appropriate content and consistent timestamp formatting.
+- All five formats produce correct, well-formed output.
 - Rejected runs produce no output file rather than an empty or misleading one.
+- Existing workflows using the default `txt` format continue to work without configuration changes.
 
 ---
 
@@ -491,7 +497,7 @@ The Desktop app is a .NET 9 MAUI Blazor Hybrid application targeting macOS (Mac 
 - On Apple Silicon, the Desktop app uses the shared core transcription pipeline directly.
 - On Intel Mac Catalyst, the Desktop app routes transcription through a local CLI bridge to maintain the same working pipeline behavior.
 - Dark theme consistent with macOS design conventions.
-- No settings editor UI is required in the current phase. Persistent configuration overrides remain file-based.
+- A Settings panel on the Ready screen allows the user to select the transcript output format. The selection persists through the Desktop user override mechanism. Other configuration overrides remain file-based.
 
 **Acceptance criteria:**
 
@@ -590,6 +596,7 @@ The following settings must be configurable:
 
 | Category | Configurable settings |
 |---|---|
+| **Output format** | Transcript result format (`txt`, `srt`, `vtt`, `json`, `md`; default `txt`) |
 | **Paths** | Input file, WAV output, result file, model file, ffmpeg executable |
 | **Model** | Model type (e.g., Base, Small, Medium) |
 | **Audio** | Output sample rate, channel count, container format, ffmpeg audio-filter chain |

@@ -51,6 +51,9 @@ internal sealed class TranscriptionService : ITranscriptionService
         var resultPath = request.ResultFilePath ?? options.ResultFilePath;
         var wavPath = options.WavFilePath;
 
+        // Normalize the result path extension to match the configured format.
+        resultPath = ResultFormatExtensions.NormalizeOutputPath(resultPath, options.ResultFormat);
+
         // 2. Validate
         progress?.Report(new ProgressUpdate(ProgressStage.Validating, 0, stopwatch.Elapsed, "Validating environment..."));
 
@@ -98,19 +101,29 @@ internal sealed class TranscriptionService : ITranscriptionService
 
         // 7. Write output
         progress?.Report(new ProgressUpdate(ProgressStage.Writing, 90, stopwatch.Elapsed, "Writing transcript..."));
-        await _outputWriter.WriteAsync(resultPath, selectionResult.AcceptedSegments, cancellationToken);
+
+        var detectedLanguage = $"{selectionResult.Language.DisplayName} ({selectionResult.Language.Code})";
+        var outputContext = new TranscriptOutputContext(
+            Format: options.ResultFormat,
+            DetectedLanguage: detectedLanguage,
+            AcceptedSegmentCount: selectionResult.AcceptedSegments.Count,
+            SkippedSegmentCount: selectionResult.SkippedSegments.Count,
+            Warnings: warnings);
+
+        await _outputWriter.WriteAsync(resultPath, selectionResult.AcceptedSegments, outputContext, cancellationToken);
 
         stopwatch.Stop();
 
-        // 8. Build preview
+        // 8. Build preview (always as TXT for display)
+        var previewContext = new TranscriptOutputContext(Format: ResultFormat.Txt);
         var preview = _outputWriter.BuildOutputText(
-            selectionResult.AcceptedSegments.Take(10).ToList());
+            selectionResult.AcceptedSegments.Take(10).ToList(), previewContext);
 
         progress?.Report(new ProgressUpdate(ProgressStage.Complete, 100, stopwatch.Elapsed, "Complete"));
 
         return new TranscribeFileResult(
             true,
-            $"{selectionResult.Language.DisplayName} ({selectionResult.Language.Code})",
+            detectedLanguage,
             resultPath,
             selectionResult.AcceptedSegments.Count,
             selectionResult.SkippedSegments.Count,

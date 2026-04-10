@@ -28,6 +28,8 @@
     M4A, WAV, MP3, AAC, FLAC, OGG, AIFF, MP4
 </p>
 
+<SettingsPanel IsDisabled="ViewModel.HasBlockingValidationErrors" />
+
 @code {
     private async Task HandleFileSelected(string filePath)
     {

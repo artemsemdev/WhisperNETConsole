@@ -151,7 +151,7 @@ public sealed class BatchTranscriptionServiceTests
     {
         public int? RecordedMaxFiles { get; private set; }
 
-        public IReadOnlyList<DiscoveredFile> DiscoverInputFiles(BatchOptions batchOptions, int? maxFiles = null)
+        public IReadOnlyList<DiscoveredFile> DiscoverInputFiles(BatchOptions batchOptions, int? maxFiles = null, string outputExtension = ".txt")
         {
             RecordedMaxFiles = maxFiles;
             return files;
@@ -296,12 +296,13 @@ public sealed class BatchTranscriptionServiceTests
         public Task WriteAsync(
             string outputPath,
             IReadOnlyList<FilteredSegment> segments,
+            TranscriptOutputContext context,
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException("Skipped files should not write transcripts.");
         }
 
-        public string BuildOutputText(IReadOnlyList<FilteredSegment> segments)
+        public string BuildOutputText(IReadOnlyList<FilteredSegment> segments, TranscriptOutputContext context)
             => string.Empty;
     }
 
@@ -310,13 +311,14 @@ public sealed class BatchTranscriptionServiceTests
         public Task WriteAsync(
             string outputPath,
             IReadOnlyList<FilteredSegment> segments,
+            TranscriptOutputContext context,
             CancellationToken cancellationToken = default)
         {
             File.WriteAllText(outputPath, string.Join(Environment.NewLine, segments.Select(segment => segment.Text)));
             return Task.CompletedTask;
         }
 
-        public string BuildOutputText(IReadOnlyList<FilteredSegment> segments)
+        public string BuildOutputText(IReadOnlyList<FilteredSegment> segments, TranscriptOutputContext context)
             => string.Join(Environment.NewLine, segments.Select(segment => segment.Text));
     }
 

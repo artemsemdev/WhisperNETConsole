@@ -42,12 +42,25 @@ VoxFlow accepts the following audio and video formats as input. All formats are 
 
 - **Single-file transcription** -- point the tool at one audio file and get a timestamped transcript
 - **Batch processing** -- point the tool at a directory and transcribe all matching files in one run, with a completion summary report
+- **Configurable output formats** -- choose from TXT (default), SRT, VTT, JSON, or Markdown output via the `resultFormat` setting
 - **Multi-language support** -- configure one or more candidate languages; the tool auto-selects the best match when multiple are provided
 - **Audio preprocessing** -- built-in noise reduction and silence removal improve transcript quality before the model runs
 - **Configurable quality controls** -- fine-tune segment filtering, hallucination suppression, and confidence thresholds to match your audio characteristics
 - **Startup validation** -- a preflight check verifies all paths, dependencies, and model availability before processing begins
 - **MCP server integration** -- expose transcription capabilities to AI clients (Claude, ChatGPT, GitHub Copilot, VS Code) via the Model Context Protocol
 - **Fully offline** -- no network calls, no API keys, no data leaves the machine
+
+## Output Formats
+
+VoxFlow supports multiple transcript output formats. The default is `txt` for backward compatibility.
+
+| Format | Extension | Description |
+|---|---|---|
+| `txt` | `.txt` | Legacy timestamped text (default). Preserves the original `{start}->{end}: {text}` format. |
+| `srt` | `.srt` | SubRip subtitle format with numbered cues and `HH:mm:ss,mmm` timestamps. |
+| `vtt` | `.vtt` | WebVTT subtitle format with `WEBVTT` header and `HH:mm:ss.mmm` timestamps. |
+| `json` | `.json` | Structured JSON with metadata (language, segment counts, warnings) and transcript segments. |
+| `md` | `.md` | Human-readable Markdown with metadata header and timestamped transcript entries. |
 
 ## High-Level Architecture
 

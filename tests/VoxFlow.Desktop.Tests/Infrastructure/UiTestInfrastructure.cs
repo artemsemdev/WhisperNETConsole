@@ -11,6 +11,7 @@ using VoxFlow.Core.Configuration;
 using VoxFlow.Core.DependencyInjection;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
+using VoxFlow.Desktop.Configuration;
 using VoxFlow.Desktop.Services;
 using VoxFlow.Desktop.ViewModels;
 
@@ -64,6 +65,7 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         services.AddSingleton<IJSRuntime>(jsRuntime);
         services.AddSingleton(viewModel);
         services.AddSingleton<IResultActionService>(resultActionService);
+        services.AddSingleton<DesktopConfigurationService>();
 
         var renderer = new TestRenderer(services.BuildServiceProvider());
         return new DesktopUiTestContext(renderer, viewModel, jsRuntime, transcription, resultActionService);
@@ -84,6 +86,7 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         services.AddSingleton<AppViewModel>();
         var resultActionService = new RecordingResultActionService();
         services.AddSingleton<IResultActionService>(resultActionService);
+        services.AddSingleton<DesktopConfigurationService>();
 
         var provider = services.BuildServiceProvider();
         var renderer = new TestRenderer(provider);

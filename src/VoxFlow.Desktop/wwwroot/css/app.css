@@ -927,6 +927,70 @@ button {
     to { transform: scale(1); }
 }
 
+/* ---------- Format Picker ---------- */
+.format-picker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 400px;
+}
+
+.format-picker-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.format-picker-segments {
+    display: flex;
+    background: rgba(22, 33, 62, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+}
+
+.format-segment {
+    position: relative;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: var(--font-family);
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+    transition: color var(--transition-fast),
+                background var(--transition-fast),
+                border-color var(--transition-fast),
+                box-shadow var(--transition-fast);
+}
+
+.format-segment:hover:not(:disabled):not(.format-segment-active) {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.format-segment-active {
+    color: var(--text-primary);
+    background: rgba(74, 74, 255, 0.12);
+    border-color: rgba(74, 74, 255, 0.25);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.format-segment:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
 /* ---------- Blazor Error UI ---------- */
 #blazor-error-ui {
     background: var(--bg-secondary);

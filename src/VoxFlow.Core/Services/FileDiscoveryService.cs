@@ -19,7 +19,7 @@ internal sealed class FileDiscoveryService : IFileDiscoveryService
     /// When the file pattern is the multi-format wildcard ("*"), all supported audio
     /// formats are discovered automatically using <see cref="SupportedInputFormats"/>.
     /// </summary>
-    public IReadOnlyList<DiscoveredFile> DiscoverInputFiles(BatchOptions batchOptions, int? maxFiles = null)
+    public IReadOnlyList<DiscoveredFile> DiscoverInputFiles(BatchOptions batchOptions, int? maxFiles = null, string outputExtension = ".txt")
     {
         ArgumentNullException.ThrowIfNull(batchOptions);
 
@@ -54,7 +54,7 @@ internal sealed class FileDiscoveryService : IFileDiscoveryService
         foreach (var inputPath in discoveredPaths)
         {
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(inputPath);
-            var outputPath = Path.Combine(batchOptions.OutputDirectory, $"{fileNameWithoutExtension}.txt");
+            var outputPath = Path.Combine(batchOptions.OutputDirectory, $"{fileNameWithoutExtension}{outputExtension}");
             var tempWavPath = Path.Combine(batchOptions.TempDirectory, $"{fileNameWithoutExtension}_{Guid.NewGuid():N}.wav");
 
             var fileInfo = new FileInfo(inputPath);

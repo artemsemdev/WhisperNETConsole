@@ -81,7 +81,8 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
         var factory = await _modelService.GetOrCreateFactoryAsync(options, cancellationToken);
 
         // 3. Discover files
-        var discoveredFiles = _fileDiscovery.DiscoverInputFiles(batchOptions, request.MaxFiles);
+        var outputExtension = options.ResultFormat.ToFileExtension();
+        var discoveredFiles = _fileDiscovery.DiscoverInputFiles(batchOptions, request.MaxFiles, outputExtension);
         var results = new List<BatchFileResult>(discoveredFiles.Count);
 
         // 4. Process each file
@@ -134,13 +135,21 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
                     ProgressStage.Writing,
                     95,
                     "Writing transcript...");
-                await _outputWriter.WriteAsync(file.OutputPath, selection.AcceptedSegments, cancellationToken);
+
+                var detectedLanguage = $"{selection.Language.DisplayName} ({selection.Language.Code})";
+                var outputContext = new TranscriptOutputContext(
+                    Format: options.ResultFormat,
+                    DetectedLanguage: detectedLanguage,
+                    AcceptedSegmentCount: selection.AcceptedSegments.Count,
+                    SkippedSegmentCount: selection.SkippedSegments.Count);
+
+                await _outputWriter.WriteAsync(file.OutputPath, selection.AcceptedSegments, outputContext, cancellationToken);
 
                 fileStopwatch.Stop();
                 results.Add(new BatchFileResult(
                     file.InputPath, file.OutputPath, "Success",
                     null, fileStopwatch.Elapsed,
-                    $"{selection.Language.DisplayName} ({selection.Language.Code})"));
+                    detectedLanguage));
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
