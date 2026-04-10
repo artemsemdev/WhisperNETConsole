@@ -927,117 +927,68 @@ button {
     to { transform: scale(1); }
 }
 
-/* ---------- Settings Panel ---------- */
-.settings-panel {
+/* ---------- Format Picker ---------- */
+.format-picker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
     width: 100%;
     max-width: 400px;
-    margin-top: 20px;
 }
 
-.settings-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    padding: 8px 12px;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: var(--border-radius);
-    color: var(--text-muted);
-    font-size: 12px;
-    font-family: var(--font-family);
-    cursor: pointer;
-    transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
-}
-
-.settings-toggle:hover {
-    color: var(--text-secondary);
-    border-color: var(--drop-zone-border);
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.settings-toggle-label {
-    flex: 1;
-    text-align: left;
-}
-
-.settings-chevron {
-    transition: transform var(--transition-fast);
-}
-
-.settings-chevron-open {
-    transform: rotate(180deg);
-}
-
-.settings-content {
-    margin-top: 8px;
-    padding: 16px;
-    background: rgba(22, 33, 62, 0.5);
-    border: 1px solid var(--border);
-    border-radius: var(--border-radius);
-    animation: settings-slide 0.15s ease-out;
-}
-
-@keyframes settings-slide {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-.settings-field {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.settings-label {
-    font-size: 13px;
+.format-picker-label {
+    font-size: 11px;
     font-weight: 500;
-    color: var(--text-secondary);
-    white-space: nowrap;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.settings-select {
-    flex: 1;
-    max-width: 200px;
-    padding: 6px 10px;
-    background: var(--bg-primary);
+.format-picker-segments {
+    display: flex;
+    background: rgba(22, 33, 62, 0.6);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text-primary);
-    font-size: 13px;
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+}
+
+.format-segment {
+    position: relative;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 500;
     font-family: var(--font-family);
+    letter-spacing: 0.3px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
     cursor: pointer;
     outline: none;
-    transition: border-color var(--transition-fast);
-    -webkit-appearance: none;
-    appearance: none;
+    transition: color var(--transition-fast),
+                background var(--transition-fast),
+                border-color var(--transition-fast),
+                box-shadow var(--transition-fast);
 }
 
-.settings-select:hover:not(:disabled) {
-    border-color: var(--drop-zone-border);
+.format-segment:hover:not(:disabled):not(.format-segment-active) {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.04);
 }
 
-.settings-select:focus {
-    border-color: var(--accent);
+.format-segment-active {
+    color: var(--text-primary);
+    background: rgba(74, 74, 255, 0.12);
+    border-color: rgba(74, 74, 255, 0.25);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
-.settings-select:disabled {
-    opacity: 0.5;
+.format-segment:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
-}
-
-.settings-save-status {
-    margin-top: 8px;
-    font-size: 11px;
-    color: var(--success);
-    text-align: right;
-    animation: settings-fade 0.2s ease-out;
-}
-
-@keyframes settings-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
 }
 
 /* ---------- Blazor Error UI ---------- */
