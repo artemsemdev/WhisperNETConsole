@@ -21,7 +21,7 @@ The script:
 1. Detects the host architecture (`arm64` or `x86_64`)
 2. Maps it to the matching Mac Catalyst runtime identifier (`maccatalyst-arm64` or `maccatalyst-x64`)
 3. Publishes `src/VoxFlow.Desktop/VoxFlow.Desktop.csproj` in Release configuration with `-p:CreatePackage=true`
-4. Writes a SHA-256 checksum file next to the generated `.pkg` or `.app` artifact
+4. Writes a SHA-256 checksum file next to the generated `.pkg` artifact in the publish directory
 
 Build artifacts are written to:
 
@@ -65,7 +65,7 @@ After packaging, verify the artifact:
 
 ```bash
 # Check the checksum file was generated
-cat src/VoxFlow.Desktop/bin/Release/net9.0-maccatalyst/*/publish/*.sha256
+cat src/VoxFlow.Desktop/bin/Release/net9.0-maccatalyst/*/publish/*.pkg.sha256
 
 # On Apple Silicon, launch the app directly
 open src/VoxFlow.Desktop/bin/Release/net9.0-maccatalyst/maccatalyst-arm64/publish/VoxFlow.Desktop.app
