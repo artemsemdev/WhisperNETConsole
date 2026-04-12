@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Components.WebView;
 using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Maui.ApplicationModel;
+using VoxFlow.Desktop.ViewModels;
 using WebKit;
 
 namespace VoxFlow.Desktop.Automation;
@@ -17,16 +18,19 @@ internal sealed class DesktopUiAutomationHost : IAsyncDisposable
     private WKWebView? _webView;
     private bool _readyFileWritten;
 
-    private DesktopUiAutomationHost(string sessionId, BlazorWebView blazorWebView)
+    private readonly AppViewModel? _viewModel;
+
+    private DesktopUiAutomationHost(string sessionId, BlazorWebView blazorWebView, AppViewModel? viewModel)
     {
         _sessionId = sessionId;
+        _viewModel = viewModel;
         Log($"Starting automation host for session '{sessionId}'.");
         blazorWebView.BlazorWebViewInitialized += HandleBlazorWebViewInitialized;
         TryAttachFromHandler(blazorWebView);
         _processingLoop = Task.Run(() => ProcessRequestsAsync(_shutdown.Token));
     }
 
-    public static DesktopUiAutomationHost? TryStart(BlazorWebView blazorWebView)
+    public static DesktopUiAutomationHost? TryStart(BlazorWebView blazorWebView, AppViewModel? viewModel = null)
     {
         var session = TryLoadSession();
         if (session is null)
@@ -41,7 +45,7 @@ internal sealed class DesktopUiAutomationHost : IAsyncDisposable
 
         CleanupSessionArtifacts(session.SessionId);
         Log($"Loaded automation session '{session.SessionId}'.");
-        return new DesktopUiAutomationHost(session.SessionId, blazorWebView);
+        return new DesktopUiAutomationHost(session.SessionId, blazorWebView, viewModel);
     }
 
     public async ValueTask DisposeAsync()
@@ -218,6 +222,7 @@ internal sealed class DesktopUiAutomationHost : IAsyncDisposable
         {
             "snapshot" => await CreateSnapshotAsync(cancellationToken),
             "click" => await ClickAsync(command.Selector, cancellationToken),
+            "select-file" => await SelectFileAsync(command.Selector, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported automation command kind '{command.Kind}'.")
         };
     }
@@ -332,6 +337,30 @@ internal sealed class DesktopUiAutomationHost : IAsyncDisposable
         }
 
         return json;
+    }
+
+    private async Task<string> SelectFileAsync(string? filePath, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            throw new InvalidOperationException("A file path is required for select-file automation.");
+        }
+
+        if (_viewModel is null)
+        {
+            throw new InvalidOperationException(
+                "The select-file command requires the AppViewModel. "
+                + "Ensure the automation host was started with a ViewModel reference.");
+        }
+
+        if (!File.Exists(filePath))
+        {
+            throw new InvalidOperationException($"File does not exist: {filePath}");
+        }
+
+        Log($"select-file: triggering TranscribeFileAsync for '{filePath}'.");
+        await MainThread.InvokeOnMainThreadAsync(() => _viewModel.TranscribeFileAsync(filePath));
+        return JsonSerializer.Serialize(new { selected = true, filePath }, JsonOptions);
     }
 
     private async Task<string> EvaluateRequiredAsync(string script, CancellationToken cancellationToken)

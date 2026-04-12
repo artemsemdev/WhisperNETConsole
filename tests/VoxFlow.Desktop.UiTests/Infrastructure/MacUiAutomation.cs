@@ -168,6 +168,22 @@ internal sealed class MacUiAutomation
             cancellationToken);
 
         UiProgressLogger.Write($"Sending file path to the native Open dialog: {filePath}");
+
+        // Place the path on the clipboard so we can paste it into Go-to-Folder.
+        // Pasting bypasses the macOS 16+ autocomplete dropdown that intercepts
+        // character-by-character keystroke input.
+        await CommandRunner.RunCheckedAsync(
+            "bash",
+            ["-c", $"echo -n {BashQuote(filePath)} | pbcopy"],
+            cancellationToken: cancellationToken,
+            timeout: TimeSpan.FromSeconds(5));
+
+        // Step 1: Open Go-to-Folder, paste the path, and confirm navigation.
+        // All shortcuts use hardware key codes (not keystroke) so the commands work
+        // regardless of the active keyboard input language (e.g. Russian layout).
+        //   key code 5  = G  (Cmd+Shift+G → Go to Folder)
+        //   key code 9  = V  (Cmd+V → Paste)
+        //   key code 36 = Return
         await RunAppleScriptCheckedAsync(
             $$"""
             tell application "System Events"
@@ -175,13 +191,53 @@ internal sealed class MacUiAutomation
                     set frontmost to true
                 end tell
 
-                keystroke "g" using {command down, shift down}
-                delay 0.4
-                keystroke "{{EscapeAppleScriptString(filePath)}}"
-                delay 0.2
+                delay 0.3
+                key code 5 using {command down, shift down}
+                delay 1.0
+                key code 9 using {command down}
+                delay 0.5
                 key code 36
-                delay 0.6
+                delay 0.5
                 key code 36
+            end tell
+            """,
+            cancellationToken);
+
+        // Step 2: Wait for the dialog to finish navigating, then click Open directly.
+        // On macOS 16+ the Enter keystroke no longer reliably activates the Open button
+        // because keyboard focus stays in the path bar after Go-to-Folder navigation.
+        await Task.Delay(1500, cancellationToken);
+        UiProgressLogger.Write("Clicking the Open button in the file dialog.");
+        await RunAppleScriptCheckedAsync(
+            $$"""
+            tell application "System Events"
+                tell (first process whose name is "{{EscapeAppleScriptString(_processName)}}")
+                    set openClicked to false
+
+                    repeat with w in windows
+                        if not openClicked then
+                            try
+                                click button "Open" of w
+                                set openClicked to true
+                            end try
+                        end if
+                        if not openClicked then
+                            try
+                                repeat with s in sheets of w
+                                    try
+                                        click button "Open" of s
+                                        set openClicked to true
+                                        exit repeat
+                                    end try
+                                end repeat
+                            end try
+                        end if
+                    end repeat
+
+                    if not openClicked then
+                        key code 36
+                    end if
+                end tell
             end tell
             """,
             cancellationToken);
@@ -353,6 +409,9 @@ internal sealed class MacUiAutomation
     private static string EscapeAppleScriptString(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal);
+
+    private static string BashQuote(string value)
+        => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 
     private async Task<string?> DescribeCurrentDomStateAsync(CancellationToken cancellationToken)
     {

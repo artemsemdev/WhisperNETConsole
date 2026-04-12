@@ -40,7 +40,7 @@ public partial class MainPage : ContentPage
 #if DEBUG && MACCATALYST
         try
         {
-            _uiAutomationHost = DesktopUiAutomationHost.TryStart(blazorWebView);
+            _uiAutomationHost = DesktopUiAutomationHost.TryStart(blazorWebView, _viewModel);
         }
         catch (Exception ex)
         {

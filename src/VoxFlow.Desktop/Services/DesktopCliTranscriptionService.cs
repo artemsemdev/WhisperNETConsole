@@ -138,7 +138,7 @@ internal sealed class DesktopCliTranscriptionService : ITranscriptionService
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = "dotnet",
+            FileName = DesktopCliSupport.ResolveDotnetPath(),
             WorkingDirectory = invocation.WorkingDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
