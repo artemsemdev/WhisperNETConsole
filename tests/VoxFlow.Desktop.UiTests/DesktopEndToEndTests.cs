@@ -33,9 +33,10 @@ public sealed class DesktopEndToEndTests
                 await session.App.Running.WaitForVisibleAsync(Path.GetFileName(longAudioPath), cancellationToken);
                 await session.App.Complete.WaitForVisibleAsync(Path.GetFileName(longAudioPath), cancellationToken);
 
-                Assert.True(File.Exists(session.ResultFilePath), $"Expected result file to exist: {session.ResultFilePath}");
+                var expectedResultPath = DesktopUiTestSession.GetExpectedResultPath(longAudioPath);
+                Assert.True(File.Exists(expectedResultPath), $"Expected result file to exist: {expectedResultPath}");
 
-                var resultText = await File.ReadAllTextAsync(session.ResultFilePath, cancellationToken);
+                var resultText = await File.ReadAllTextAsync(expectedResultPath, cancellationToken);
                 Assert.False(string.IsNullOrWhiteSpace(resultText));
             });
 
@@ -78,7 +79,8 @@ public sealed class DesktopEndToEndTests
                 await session.App.BrowseFileAsync(RepositoryLayout.InputFileTwo, cancellationToken);
                 await session.App.Complete.WaitForVisibleAsync(Path.GetFileName(RepositoryLayout.InputFileTwo), cancellationToken);
 
-                Assert.True(File.Exists(session.ResultFilePath), $"Expected result file to exist after recovery: {session.ResultFilePath}");
+                var expectedResultPath = DesktopUiTestSession.GetExpectedResultPath(RepositoryLayout.InputFileTwo);
+                Assert.True(File.Exists(expectedResultPath), $"Expected result file to exist after recovery: {expectedResultPath}");
             });
 
     [DesktopUiFact]
@@ -92,7 +94,9 @@ public sealed class DesktopEndToEndTests
                 await session.App.BrowseFileAsync(RepositoryLayout.InputFileOne, cancellationToken);
                 await session.App.Complete.WaitForVisibleAsync(Path.GetFileName(RepositoryLayout.InputFileOne), cancellationToken);
 
-                var firstWriteUtc = File.GetLastWriteTimeUtc(session.ResultFilePath);
+                var firstResultPath = DesktopUiTestSession.GetExpectedResultPath(RepositoryLayout.InputFileOne);
+                Assert.True(File.Exists(firstResultPath), $"Expected first result file: {firstResultPath}");
+                var firstWriteUtc = File.GetLastWriteTimeUtc(firstResultPath);
 
                 await session.App.Complete.GoBackAsync(cancellationToken);
                 await session.App.WaitForReadyAsync(cancellationToken);
@@ -100,10 +104,12 @@ public sealed class DesktopEndToEndTests
                 await session.App.BrowseFileAsync(RepositoryLayout.InputFileTwo, cancellationToken);
                 await session.App.Complete.WaitForVisibleAsync(Path.GetFileName(RepositoryLayout.InputFileTwo), cancellationToken);
 
-                var secondWriteUtc = File.GetLastWriteTimeUtc(session.ResultFilePath);
+                var secondResultPath = DesktopUiTestSession.GetExpectedResultPath(RepositoryLayout.InputFileTwo);
+                Assert.True(File.Exists(secondResultPath), $"Expected second result file: {secondResultPath}");
+                var secondWriteUtc = File.GetLastWriteTimeUtc(secondResultPath);
                 Assert.True(
                     secondWriteUtc >= firstWriteUtc,
-                    $"Expected the result file to be updated on the second run. First={firstWriteUtc:O}, second={secondWriteUtc:O}");
+                    $"Expected second file written after first. First={firstWriteUtc:O} ({firstResultPath}), Second={secondWriteUtc:O} ({secondResultPath})");
             });
 
     private static async Task RunScenarioAsync(

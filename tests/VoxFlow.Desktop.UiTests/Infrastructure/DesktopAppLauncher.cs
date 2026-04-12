@@ -61,6 +61,10 @@ internal sealed class DesktopAppLauncher : IAsyncDisposable
                     process.Dispose();
                 }
             }
+
+            // Allow macOS window server to fully release resources before the next
+            // test scenario launches a new instance of the app.
+            await Task.Delay(2000);
         }
         catch
         {

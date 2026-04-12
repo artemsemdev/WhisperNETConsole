@@ -168,6 +168,8 @@ internal sealed class MacUiAutomation
             cancellationToken);
 
         UiProgressLogger.Write($"Sending file path to the native Open dialog: {filePath}");
+
+        // Step 1: Open Go-to-Folder, type path, and confirm navigation.
         await RunAppleScriptCheckedAsync(
             $$"""
             tell application "System Events"
@@ -176,12 +178,51 @@ internal sealed class MacUiAutomation
                 end tell
 
                 keystroke "g" using {command down, shift down}
-                delay 0.4
+                delay 0.5
                 keystroke "{{EscapeAppleScriptString(filePath)}}"
-                delay 0.2
+                delay 0.3
                 key code 36
-                delay 0.6
+                delay 0.5
                 key code 36
+            end tell
+            """,
+            cancellationToken);
+
+        // Step 2: Wait for the dialog to finish navigating, then click Open directly.
+        // On macOS 16+ the Enter keystroke no longer reliably activates the Open button
+        // because keyboard focus stays in the path bar after Go-to-Folder navigation.
+        await Task.Delay(1500, cancellationToken);
+        UiProgressLogger.Write("Clicking the Open button in the file dialog.");
+        await RunAppleScriptCheckedAsync(
+            $$"""
+            tell application "System Events"
+                tell (first process whose name is "{{EscapeAppleScriptString(_processName)}}")
+                    set openClicked to false
+
+                    repeat with w in windows
+                        if not openClicked then
+                            try
+                                click button "Open" of w
+                                set openClicked to true
+                            end try
+                        end if
+                        if not openClicked then
+                            try
+                                repeat with s in sheets of w
+                                    try
+                                        click button "Open" of s
+                                        set openClicked to true
+                                        exit repeat
+                                    end try
+                                end repeat
+                            end try
+                        end if
+                    end repeat
+
+                    if not openClicked then
+                        key code 36
+                    end if
+                end tell
             end tell
             """,
             cancellationToken);

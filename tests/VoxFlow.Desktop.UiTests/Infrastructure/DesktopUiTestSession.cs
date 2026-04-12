@@ -31,6 +31,19 @@ internal sealed class DesktopUiTestSession : IAsyncDisposable
 
     public string ResultFilePath => Artifacts.ResultOutputPath;
 
+    /// <summary>
+    /// Computes the result file path the Desktop app will actually produce for a given input file.
+    /// Mirrors the logic in AppViewModel.TranscribeFileAsync: ~/Documents/VoxFlow/output/{inputName}.txt
+    /// </summary>
+    public static string GetExpectedResultPath(string inputFilePath)
+    {
+        var outputDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "VoxFlow", "output");
+        var resultFileName = Path.GetFileNameWithoutExtension(inputFilePath) + ".txt";
+        return Path.Combine(outputDir, resultFileName);
+    }
+
     public static async Task<DesktopUiTestSession> StartAsync(
         string scenarioName,
         CancellationToken cancellationToken)
