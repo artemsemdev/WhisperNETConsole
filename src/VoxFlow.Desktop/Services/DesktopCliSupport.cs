@@ -14,6 +14,32 @@ internal static partial class DesktopCliSupport
         => OperatingSystem.IsMacCatalyst()
             && RuntimeInformation.ProcessArchitecture == Architecture.X64;
 
+    /// <summary>
+    /// Resolves the full path to the dotnet executable.
+    /// Mac Catalyst apps launched from Finder/LaunchServices don't inherit the user's
+    /// shell PATH, so a bare "dotnet" fails with ENOENT. This method checks well-known
+    /// install locations first, then falls back to the bare name for PATH-based lookup.
+    /// </summary>
+    public static string ResolveDotnetPath()
+    {
+        var candidates = new[]
+        {
+            "/usr/local/share/dotnet/dotnet",
+            "/opt/homebrew/bin/dotnet",
+            "/usr/local/bin/dotnet"
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return "dotnet";
+    }
+
     public static DesktopCliInvocation ResolveCliInvocation(string baseDirectory)
     {
         var bundledAssemblyPath = ResolveBundledCliAssemblyPath(baseDirectory);
