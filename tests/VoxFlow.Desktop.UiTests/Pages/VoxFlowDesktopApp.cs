@@ -62,6 +62,15 @@ internal sealed class ReadyScreen
         await _automation.SelectFileInOpenPanelAsync(filePath, cancellationToken);
         UiProgressLogger.Write($"Native file picker selection confirmed: {filePath}");
     }
+
+    public async Task SelectFormatAsync(string formatId, CancellationToken cancellationToken)
+    {
+        var selector = $"#format-option-{formatId}";
+        UiProgressLogger.Write($"Selecting output format: {formatId.ToUpperInvariant()}");
+        await _automation.ClickElementAsync(selector, cancellationToken);
+        // Allow time for the format selection to persist to config.
+        await Task.Delay(500, cancellationToken);
+    }
 }
 
 internal sealed class RunningScreen

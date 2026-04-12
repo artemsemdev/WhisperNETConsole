@@ -112,14 +112,45 @@ public sealed class DesktopEndToEndTests
                     $"Expected second file written after first. First={firstWriteUtc:O} ({firstResultPath}), Second={secondWriteUtc:O} ({secondResultPath})");
             });
 
+    [DesktopUiTheory]
+    [InlineData("txt", ".txt")]
+    [InlineData("srt", ".srt")]
+    [InlineData("vtt", ".vtt")]
+    [InlineData("json", ".json")]
+    [InlineData("md", ".md")]
+    public Task OutputFormat_ProducesFileWithCorrectExtension(string formatId, string expectedExtension)
+        => RunScenarioAsync(
+            $"output-format-{formatId}",
+            resultFormat: formatId,
+            async (session, cancellationToken) =>
+            {
+                await session.App.WaitForReadyAsync(cancellationToken);
+                await session.App.BrowseFileAsync(RepositoryLayout.InputFileOne, cancellationToken);
+                await session.App.Complete.WaitForVisibleAsync(Path.GetFileName(RepositoryLayout.InputFileOne), cancellationToken);
+
+                var expectedResultPath = DesktopUiTestSession.GetExpectedResultPath(RepositoryLayout.InputFileOne, expectedExtension);
+                Assert.True(File.Exists(expectedResultPath),
+                    $"Expected {formatId.ToUpperInvariant()} result file: {expectedResultPath}");
+
+                var resultContent = await File.ReadAllTextAsync(expectedResultPath, cancellationToken);
+                Assert.False(string.IsNullOrWhiteSpace(resultContent),
+                    $"Result file for format {formatId.ToUpperInvariant()} is empty.");
+            });
+
+    private static Task RunScenarioAsync(
+        string scenarioName,
+        Func<DesktopUiTestSession, CancellationToken, Task> scenario)
+        => RunScenarioAsync(scenarioName, resultFormat: null, scenario);
+
     private static async Task RunScenarioAsync(
         string scenarioName,
+        string? resultFormat,
         Func<DesktopUiTestSession, CancellationToken, Task> scenario)
     {
         using var cancellationSource = new CancellationTokenSource(TimeSpan.FromMinutes(6));
         var startedAt = DateTimeOffset.UtcNow;
         UiProgressLogger.Write($"Scenario started: {scenarioName}");
-        await using var session = await DesktopUiTestSession.StartAsync(scenarioName, cancellationSource.Token);
+        await using var session = await DesktopUiTestSession.StartAsync(scenarioName, resultFormat, cancellationSource.Token);
 
         try
         {

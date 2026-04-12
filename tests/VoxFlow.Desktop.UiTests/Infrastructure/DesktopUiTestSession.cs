@@ -33,19 +33,25 @@ internal sealed class DesktopUiTestSession : IAsyncDisposable
 
     /// <summary>
     /// Computes the result file path the Desktop app will actually produce for a given input file.
-    /// Mirrors the logic in AppViewModel.TranscribeFileAsync: ~/Documents/VoxFlow/output/{inputName}.txt
+    /// Mirrors the logic in AppViewModel.TranscribeFileAsync: ~/Documents/VoxFlow/output/{inputName}.{ext}
     /// </summary>
-    public static string GetExpectedResultPath(string inputFilePath)
+    public static string GetExpectedResultPath(string inputFilePath, string extension = ".txt")
     {
         var outputDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "VoxFlow", "output");
-        var resultFileName = Path.GetFileNameWithoutExtension(inputFilePath) + ".txt";
+        var resultFileName = Path.GetFileNameWithoutExtension(inputFilePath) + extension;
         return Path.Combine(outputDir, resultFileName);
     }
 
+    public static Task<DesktopUiTestSession> StartAsync(
+        string scenarioName,
+        CancellationToken cancellationToken)
+        => StartAsync(scenarioName, resultFormat: null, cancellationToken);
+
     public static async Task<DesktopUiTestSession> StartAsync(
         string scenarioName,
+        string? resultFormat,
         CancellationToken cancellationToken)
     {
         UiProgressLogger.Write($"Preparing Desktop UI session for scenario '{scenarioName}'.");
@@ -57,7 +63,7 @@ internal sealed class DesktopUiTestSession : IAsyncDisposable
         var userConfigScope = new DesktopUserConfigScope();
         UiProgressLogger.Write("Writing isolated Desktop user config override.");
         // These tests launch the real app bundle, so each scenario gets its own config override to avoid cross-test leakage.
-        await userConfigScope.WriteAsync(DesktopUiTestConfigFactory.CreateValidSingleFileOverride(artifacts));
+        await userConfigScope.WriteAsync(DesktopUiTestConfigFactory.CreateValidSingleFileOverride(artifacts, resultFormat));
         UiProgressLogger.Write("Preparing Desktop UI automation bridge session.");
         var bridge = DesktopUiAutomationBridgeClient.CreateAndPrepare();
 

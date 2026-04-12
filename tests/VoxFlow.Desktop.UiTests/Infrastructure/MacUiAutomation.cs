@@ -169,7 +169,21 @@ internal sealed class MacUiAutomation
 
         UiProgressLogger.Write($"Sending file path to the native Open dialog: {filePath}");
 
-        // Step 1: Open Go-to-Folder, type path, and confirm navigation.
+        // Place the path on the clipboard so we can paste it into Go-to-Folder.
+        // Pasting bypasses the macOS 16+ autocomplete dropdown that intercepts
+        // character-by-character keystroke input.
+        await CommandRunner.RunCheckedAsync(
+            "bash",
+            ["-c", $"echo -n {BashQuote(filePath)} | pbcopy"],
+            cancellationToken: cancellationToken,
+            timeout: TimeSpan.FromSeconds(5));
+
+        // Step 1: Open Go-to-Folder, paste the path, and confirm navigation.
+        // All shortcuts use hardware key codes (not keystroke) so the commands work
+        // regardless of the active keyboard input language (e.g. Russian layout).
+        //   key code 5  = G  (Cmd+Shift+G → Go to Folder)
+        //   key code 9  = V  (Cmd+V → Paste)
+        //   key code 36 = Return
         await RunAppleScriptCheckedAsync(
             $$"""
             tell application "System Events"
@@ -177,10 +191,11 @@ internal sealed class MacUiAutomation
                     set frontmost to true
                 end tell
 
-                keystroke "g" using {command down, shift down}
-                delay 0.5
-                keystroke "{{EscapeAppleScriptString(filePath)}}"
                 delay 0.3
+                key code 5 using {command down, shift down}
+                delay 1.0
+                key code 9 using {command down}
+                delay 0.5
                 key code 36
                 delay 0.5
                 key code 36
@@ -394,6 +409,9 @@ internal sealed class MacUiAutomation
     private static string EscapeAppleScriptString(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal);
+
+    private static string BashQuote(string value)
+        => "'" + value.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 
     private async Task<string?> DescribeCurrentDomStateAsync(CancellationToken cancellationToken)
     {

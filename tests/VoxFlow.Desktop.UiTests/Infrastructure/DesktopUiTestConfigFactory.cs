@@ -4,41 +4,45 @@ namespace VoxFlow.Desktop.UiTests.Infrastructure;
 
 internal static class DesktopUiTestConfigFactory
 {
-    public static JsonObject CreateValidSingleFileOverride(ScenarioArtifacts artifacts)
+    public static JsonObject CreateValidSingleFileOverride(ScenarioArtifacts artifacts, string? resultFormat = null)
     {
-        return new JsonObject
+        var transcription = new JsonObject
         {
-            ["transcription"] = new JsonObject
+            ["processingMode"] = "single",
+            ["wavFilePath"] = artifacts.WavOutputPath,
+            ["resultFilePath"] = artifacts.ResultOutputPath,
+            ["modelFilePath"] = RepositoryLayout.ModelFile,
+            ["ffmpegExecutablePath"] = "ffmpeg",
+            ["supportedLanguages"] = new JsonArray
             {
-                ["processingMode"] = "single",
-                ["wavFilePath"] = artifacts.WavOutputPath,
-                ["resultFilePath"] = artifacts.ResultOutputPath,
-                ["modelFilePath"] = RepositoryLayout.ModelFile,
-                ["ffmpegExecutablePath"] = "ffmpeg",
-                ["supportedLanguages"] = new JsonArray
+                new JsonObject
                 {
-                    new JsonObject
-                    {
-                        ["code"] = "en",
-                        ["displayName"] = "English"
-                    }
-                },
-                // UI tests exercise screen flow, so keep only the checks that are deterministic across machines and CI.
-                ["startupValidation"] = new JsonObject
-                {
-                    ["enabled"] = true,
-                    ["printDetailedReport"] = true,
-                    ["checkInputFile"] = false,
-                    ["checkOutputDirectories"] = true,
-                    ["checkOutputWriteAccess"] = true,
-                    ["checkFfmpegAvailability"] = true,
-                    ["checkModelType"] = true,
-                    ["checkModelDirectory"] = true,
-                    ["checkModelLoadability"] = true,
-                    ["checkLanguageSupport"] = false,
-                    ["checkWhisperRuntime"] = false
+                    ["code"] = "en",
+                    ["displayName"] = "English"
                 }
+            },
+            // UI tests exercise screen flow, so keep only the checks that are deterministic across machines and CI.
+            ["startupValidation"] = new JsonObject
+            {
+                ["enabled"] = true,
+                ["printDetailedReport"] = true,
+                ["checkInputFile"] = false,
+                ["checkOutputDirectories"] = true,
+                ["checkOutputWriteAccess"] = true,
+                ["checkFfmpegAvailability"] = true,
+                ["checkModelType"] = true,
+                ["checkModelDirectory"] = true,
+                ["checkModelLoadability"] = true,
+                ["checkLanguageSupport"] = false,
+                ["checkWhisperRuntime"] = false
             }
         };
+
+        if (resultFormat is not null)
+        {
+            transcription["resultFormat"] = resultFormat;
+        }
+
+        return new JsonObject { ["transcription"] = transcription };
     }
 }
