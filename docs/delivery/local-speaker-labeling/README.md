@@ -83,30 +83,37 @@ Explicitly excluded from this delivery to prevent scope creep. Each item is eith
 
 ## Affected Surfaces
 
-- [x] `VoxFlow.Core` — new services, new models, new configuration, updated `TranscriptionFilter`, updated `TranscribeFileResult`, updated output writers.
-- [x] `VoxFlow.Cli` — new `--speakers` flag, updated help.
-- [x] `VoxFlow.Desktop` — new Ready-screen toggle, new completion-screen speaker renderer, new progress stage wiring.
-- [x] `VoxFlow.McpServer` — new `enableSpeakers` tool parameter, updated schema.
-- [x] `tests/VoxFlow.Core.Tests` — new unit tests for merge, runtime, sidecar client, enrichment, validation, output writers, transcript model.
-- [x] `tests/VoxFlow.EndToEndTests` — new integration tests with `[Category("RequiresPython")]`.
-- [x] `tests/VoxFlow.Desktop.Tests` — new Razor component tests for speaker renderer.
-- [x] `docs/contracts/` — new schema files for sidecar contract and `.voxflow.json`.
-- [x] `docs/runbooks/` — new runbook for troubleshooting speaker labeling.
-- [x] `docs/adr/024-local-speaker-labeling-pipeline.md` — small amendment replacing PyInstaller with python-build-standalone as the preferred packaging tool.
+- [x] `src/VoxFlow.Core` — new services, new models, new configuration section under `transcription`, updated `TranscriptionFilter`, updated `TranscribeFileResult`, updated output writers, new embedded `voxflow_diarize.py` resource + requirements file.
+- [x] `src/VoxFlow.Cli` — new `--speakers` flag, updated help text.
+- [x] `src/VoxFlow.Desktop` — new Ready-screen toggle, new completion-screen colored speaker renderer, new progress stage wiring.
+- [x] `src/VoxFlow.McpServer` — new `enableSpeakers` tool parameter, updated JSON schema of the `transcribe_file` tool.
+- [x] `tests/VoxFlow.Core.Tests` — new unit tests (merge, runtime, sidecar client, enrichment, validation, output writers, transcript model) **plus** the Python-gated integration tests. Integration tests live in the same project tagged `[Trait("Category", "RequiresPython")]` and are filtered on the command line; a separate `VoxFlow.EndToEndTests` project is **not** created (there is no such project in the repo today — the folder exists only as orphaned build output and is deliberately not revived).
+- [x] `tests/VoxFlow.Cli.Tests` — updated argument-parsing tests for `--speakers`.
+- [x] `tests/VoxFlow.McpServer.Tests` — updated tool-schema tests for `enableSpeakers`.
+- [x] `tests/VoxFlow.Desktop.Tests` — new Razor component tests for the speaker renderer and the Ready-screen toggle.
+- [x] `tests/TestSupport` — shared helpers (`TestSettingsFileFactory` and co.) extended if new config shapes need test-side fixtures.
+- [x] `appsettings.json` and `appsettings.example.json` — new nested `transcription.speakerLabeling` section (example file must mirror the loader-compatible shape).
+- [x] `docs/contracts/` — new schema files for the sidecar contract and the `.voxflow.json` artifact.
+- [x] `docs/runbooks/` — new runbook for troubleshooting speaker labeling (first-run setup, model download failures, sidecar diagnostics).
+- [x] `docs/adr/024-local-speaker-labeling-pipeline.md` — amendment replacing PyInstaller with python-build-standalone as the preferred packaging tool.
 
 ---
 
 ## Configuration Changes
 
-New section in `appsettings.json`:
+New nested section **inside** the existing `transcription` root of `appsettings.json`. The `transcription` root is mandatory because `TranscriptionOptions.LoadFromPath` deserializes into `TranscriptionSettingsRoot { Transcription: ... }` — a `speakerLabeling` key at the top level would be silently ignored. The `transcription.speakerLabeling` path is the only supported binding location.
 
 ```json
 {
-  "speakerLabeling": {
-    "enabled": false,
-    "timeoutSeconds": 600,
-    "pythonRuntimeMode": "ManagedVenv",
-    "modelId": "pyannote/speaker-diarization-community-1"
+  "transcription": {
+    "processingMode": "batch",
+    "...": "... existing settings unchanged ...",
+    "speakerLabeling": {
+      "enabled": false,
+      "timeoutSeconds": 600,
+      "pythonRuntimeMode": "ManagedVenv",
+      "modelId": "pyannote/speaker-diarization-community-1"
+    }
   }
 }
 ```
@@ -115,6 +122,8 @@ New section in `appsettings.json`:
 - `timeoutSeconds` — hard timeout for sidecar process, default 600 (10 min). Applies per file.
 - `pythonRuntimeMode` — one of `SystemPython` (dev/CI escape hatch), `ManagedVenv` (default for users), `Standalone` (future, from python-build-standalone spike).
 - `modelId` — pyannote model identifier. Pinned so upgrades are explicit.
+
+The same nested structure must land in `appsettings.example.json` in the same PR that introduces it, so documented examples match the loader.
 
 CLI override: `--speakers` flag on `transcribe` / `batch` commands. Overrides `enabled` for that invocation.
 
@@ -133,9 +142,10 @@ Desktop override: Ready-screen toggle. Persists back to `appsettings.json` on ch
 - `torch`, `torchaudio` (transitive via pyannote).
 - pyannote pretrained model weights (~300 MB), downloaded on first run to `~/Library/Caches/VoxFlow/models/` (macOS).
 
-**Development (added to CI optional job):**
+**Development (local developer runs, not CI):**
 
-- Python 3.10+ available on the runner for `[Category("RequiresPython")]` integration test job.
+- Python 3.10+ available locally for the `Category=RequiresPython` trait-filtered integration tests. No CI job is added; the integration suite runs on the developer machine before each PR.
+- `Xunit.SkippableFact` NuGet package (added to `VoxFlow.Core.Tests` in P0.5) — enables dynamic skip for tests that depend on sidecar availability. Without this package, xUnit has no idiomatic runtime skip mechanism.
 
 **Nothing is added to Core nuget dependencies** — the Python side is invoked as a child process via `System.Diagnostics.Process`. No new managed dependencies enter VoxFlow.Core.
 
@@ -156,7 +166,7 @@ Observable, testable outcomes that define "done" for this delivery:
 9. **First-run setup is explicit and cancellable.** When the user enables the feature for the first time without a prepared venv/model cache, they see an explicit prompt/progress and can cancel. Tested end-to-end on a clean machine (manual smoke check before Phase 3 completion).
 10. **Desktop displays colored speaker turns.** With the feature enabled, the completion screen shows transcript turns with each speaker in a distinct color from the Okabe-Ito palette. Cycles if >8 speakers. Razor component-tested.
 11. **CLI, Desktop, MCP are consistent.** The same audio file produces the same structured result across all three hosts.
-12. **Integration tests pass on a machine with Python installed.** `dotnet test --filter Category=RequiresPython` runs the full sidecar path against real fixtures and passes.
+12. **Integration tests pass on a machine with Python installed.** `dotnet test --filter "Category=RequiresPython"` runs the full sidecar path against real fixtures and passes. Tests are tagged with `[Trait("Category", "RequiresPython")]` on the test class (xUnit 2.9 syntax — `[Category(...)]` is MSTest and does not work in this project).
 13. **ADR-024 reflects the current design.** The PyInstaller reference is replaced with python-build-standalone (this is the only ADR amendment).
 
 ---
@@ -203,8 +213,8 @@ This delivery uses test-driven development strictly:
 1. **Red before green.** Every new class or method gets a failing test before any implementation code is written. No "I'll write the test after."
 2. **Bottom-up.** Pure-logic classes are tested and implemented first (`SpeakerMergeService`), then their consumers. Process boundaries come last.
 3. **Fixture-based unit tests.** Merge logic is exercised with pre-recorded JSON fixtures of `WhisperToken[]` and sidecar responses — **not** by running Python. This keeps 90% of tests fast, deterministic, and environment-independent.
-4. **Integration tests are gated.** Tests that require a real Python runtime carry the `[Category("RequiresPython")]` attribute and run separately. They validate that the real sidecar honors the contract — not the merge logic.
-5. **Local test runs are mandatory before PRs.** Before `gh pr create`, run `dotnet test` (and, if the PR touches integration code, `dotnet test --filter Category=RequiresPython`) and confirm no previously-green test has turned red. Report results in the PR body.
+4. **Integration tests are gated via xUnit trait.** Tests that require a real Python runtime carry `[Trait("Category", "RequiresPython")]` (xUnit 2.9 syntax; the `VoxFlow.Core.Tests` project uses xUnit 2.9.2). The standard `dotnet test` run filters them out via `--filter "Category!=RequiresPython"`; the developer runs them explicitly via `dotnet test --filter "Category=RequiresPython"`. There is no MSTest-style `[Category]` attribute or `Assert.Inconclusive` — neither exists in xUnit. For tests that need to conditionally skip based on runtime state (e.g., "sidecar binary missing on this machine"), add the `Xunit.SkippableFact` NuGet package and use `Skip.If(...)` — this is introduced as part of the first PR that needs it (P0.5).
+5. **Local test runs are mandatory before PRs.** Before `gh pr create`, run `dotnet test` (and, if the PR touches integration code, `dotnet test --filter "Category=RequiresPython"`) and confirm no previously-green test has turned red. Report results in the PR body.
 6. **One PR = one completed TDD cycle.** A PR that leaves code half-implemented or tests red is not merged.
 
 See the per-phase documents for the concrete TDD sequence of each PR.
@@ -216,7 +226,7 @@ See the per-phase documents for the concrete TDD sequence of each PR.
 Before the user promotes `Local-Speaker-Labeling` to `master` (outside the scope of this delivery), the following must be true:
 
 - [ ] All acceptance criteria above are satisfied and verified.
-- [ ] `dotnet test` is fully green locally (with and without `RequiresPython` filter, on a machine that has Python 3.10+ installed for the filtered run).
+- [ ] `dotnet test` is fully green locally (both the default run and `dotnet test --filter "Category=RequiresPython"`, on a machine that has Python 3.10+ installed for the filtered run).
 - [ ] All four phase documents exist and are up to date (including post-execution outcomes).
 - [ ] ADR-024 amendment is merged into `Local-Speaker-Labeling`.
 - [ ] Runbook `docs/runbooks/speaker-labeling.md` exists and has been manually walked through at least once.

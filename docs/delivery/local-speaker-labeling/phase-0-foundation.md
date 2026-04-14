@@ -19,7 +19,7 @@ Phase 0 is deliberately front-loaded with pure-logic work so that the riskiest p
 - `docs/contracts/sidecar-diarization-v1.schema.json` exists and is schema-validated in tests.
 - `IPythonRuntime` abstraction exists with `SystemPythonRuntime` and `ManagedVenvRuntime` implementations, both unit-tested via a mocked process launcher.
 - `voxflow_diarize.py` sidecar script exists, runs standalone, and honors the JSON contract.
-- `PyannoteSidecarClient` exists and is contract-tested against fixture JSON plus integration-tested against the real Python script.
+- `PyannoteSidecarClient` exists and is contract-tested against fixture JSON plus integration-tested against the real Python script. Integration tests live in `VoxFlow.Core.Tests` tagged with `[Trait("Category", "RequiresPython")]` — xUnit 2.9 trait, filterable via `dotnet test --filter "Category=RequiresPython"`. No separate integration-test project is created (the `VoxFlow.EndToEndTests` folder in the repo is dead output, not a real project).
 - `SpeakerMergeService` exists with ≥15 unit tests covering every merge rule from ADR-024.
 - Three audio fixtures exist in `tests/fixtures/sidecar/audio/` and are referenced by at least one integration test each.
 - `python-build-standalone` spike has a documented go/no-go outcome (parallel, non-blocking).
@@ -41,7 +41,8 @@ Eight sub-PRs, in strict order. Each PR is the smallest unit that leaves the int
 Conventions for every PR below:
 - **Branch:** `speaker-labeling/pN.M-<slug>` off `Local-Speaker-Labeling`.
 - **Base for PR:** `Local-Speaker-Labeling`.
-- **Before `gh pr create`:** run `dotnet test` locally; if the PR touches integration code also run `dotnet test --filter Category=RequiresPython`. Both must be fully green.
+- **Before `gh pr create`:** run `dotnet test` locally; if the PR touches integration code also run `dotnet test --filter "Category=RequiresPython"`. Both must be fully green.
+- **Test tagging:** Python-gated tests use `[Trait("Category", "RequiresPython")]` on the test class. xUnit 2.9.2 does not recognize MSTest's `[Category(...)]` nor `Assert.Inconclusive(...)`; those must not appear in any test added here.
 - **Commit authorship:** user only; no Co-Authored-By trailers.
 - **PR body:** no "Generated with Claude Code" footer.
 
@@ -54,14 +55,22 @@ Conventions for every PR below:
 **Why first:** Every downstream component needs word-level timing. Without this change, there is nothing to merge with diarization output. This is the smallest possible change that unblocks everything else.
 
 **Files touched:**
-- `src/VoxFlow.Core/Models/FilteredSegment.cs` — add `IReadOnlyList<WhisperToken> Words` property to the record.
-- `src/VoxFlow.Core/Services/TranscriptionFilter.cs` — pass `segment.Tokens` through when constructing `FilteredSegment`.
-- `tests/VoxFlow.Core.Tests/TranscriptionFilterTests.cs` — new tests; existing tests updated to construct `FilteredSegment` with the new field (empty array is fine for existing cases).
+- `src/VoxFlow.Core/Models/FilteredSegment.cs` — add `Words` as a **new trailing positional parameter** with a default of `Array.Empty<WhisperToken>()` (or an `IReadOnlyList<WhisperToken>` with `[]` default via the record primary-constructor syntax). The default is load-bearing: it keeps every existing positional `new FilteredSegment(start, end, text, probability)` call-site compiling without edits.
+- `src/VoxFlow.Core/Services/TranscriptionFilter.cs` — pass `segment.Tokens ?? Array.Empty<WhisperToken>()` as the fifth argument when constructing `FilteredSegment` around line 45.
+- `tests/VoxFlow.Core.Tests/TranscriptionFilterTests.cs` — new tests that assert `Words` is populated on the accepted segments (these are the only new tests in the PR).
+
+**Blast radius — other test files that construct `FilteredSegment` positionally:**
+- `tests/VoxFlow.Core.Tests/OutputWriterTests.cs` (multiple sites around lines 21, 39, 66–68, 88, 109)
+- `tests/VoxFlow.Core.Tests/TranscriptFormatterTests.cs` (lines 15–16)
+- `tests/VoxFlow.Core.Tests/LanguageSelectionDecisionTests.cs` (~line 165)
+- `tests/VoxFlow.Core.Tests/BatchTranscriptionServiceTests.cs` (~line 289)
+
+Because `Words` is added as a trailing parameter *with a default*, these four files do **not** need to be touched in P0.1 and their existing assertions stay unchanged. Verifying this is the PR's self-check: `dotnet build` must succeed with no edits to those files. If any of them needs changes, the default is wrong and the PR should be rethought before landing.
 
 **TDD steps:**
 
 1. **Red.** Add `TranscriptionFilterTests.FilterSegments_PreservesWordTokens_FromAcceptedSegments`. Construct a `SegmentData` whose `Tokens` array has three `WhisperToken` entries with known timing. Call `FilterSegments`. Assert `result.Accepted[0].Words.Count == 3` and that each token's `Text` and timing match. Compile: fails because `FilteredSegment.Words` doesn't exist.
-2. **Green.** Add `IReadOnlyList<WhisperToken> Words` to `FilteredSegment`. Update `TranscriptionFilter.FilterSegments` line ~45 to pass `segment.Tokens ?? Array.Empty<WhisperToken>()` (we still guard against a null Tokens array). Update every existing test that constructs `FilteredSegment` to pass `Array.Empty<WhisperToken>()`. Tests pass.
+2. **Green.** Add `Words` as a trailing positional parameter on `FilteredSegment` with default `Array.Empty<WhisperToken>()`. Update `TranscriptionFilter.FilterSegments` line ~45 to pass `segment.Tokens ?? Array.Empty<WhisperToken>()` (guarding against a null `Tokens` array). Do **not** touch `OutputWriterTests`, `TranscriptFormatterTests`, `LanguageSelectionDecisionTests`, or `BatchTranscriptionServiceTests` — the default makes their positional constructor calls compile unchanged. Tests pass.
 3. **Red.** Add `TranscriptionFilterTests.FilterSegments_ExcludesSkippedSegments_TokensStillAttachedOnAcceptedOnes`. Two segments: one accepted, one skipped. Assert the accepted one still carries its tokens and the filter's skipped-segment behavior is unchanged. Compile: passes to compile, may fail assertion.
 4. **Green.** Should already pass if step 2 was correct — this is a guard test that the refactor didn't move tokens to the wrong place.
 5. **Red.** Add `TranscriptionFilterTests.FilterSegments_DuplicateLoopFilter_DropsTokensAlongsideSegment`. Two identical segments beyond the duplicate-loop threshold; tokens should disappear with the skipped duplicate. Assert the filtered list has the expected tokens and the dropped one isn't attached to anything.
@@ -72,7 +81,7 @@ Conventions for every PR below:
 ```
 dotnet test tests/VoxFlow.Core.Tests/VoxFlow.Core.Tests.csproj
 ```
-All tests green. No tests outside `TranscriptionFilterTests` should need updating, since `FilteredSegment` additions are purely additive.
+All tests green. `TranscriptionFilterTests` is the only file with *new* tests. The four files listed in Blast radius above must still compile and pass with no edits — if any of them fails to build, the default value on `Words` is wrong and needs to be revisited before landing.
 
 **PR description template:**
 ```
@@ -112,7 +121,7 @@ Test plan:
 **TDD steps:**
 
 1. **Red.** `TranscriptDocumentTests.Construct_WithSpeakersAndWords_ExposesAllFields`. Create a document with 2 speakers, 4 words. Assert property access works and collections are non-null. Compile: fails, types don't exist.
-2. **Green.** Create `TranscriptDocument`, `SpeakerInfo`, `TranscriptWord`, `SpeakerTurn`, `TranscriptMetadata` as `sealed record` types matching the shapes in [README §Proposed Solution](README.md#proposed-solution) and [brainstorm Section 3](README.md). No logic yet, just constructors. Test passes.
+2. **Green.** Create `TranscriptDocument`, `SpeakerInfo`, `TranscriptWord`, `SpeakerTurn`, `TranscriptMetadata` as `sealed record` types matching the shapes described in [README.md](README.md) and [ADR-024](../../adr/024-local-speaker-labeling-pipeline.md). No logic yet, just constructors. Test passes.
 3. **Red.** `TranscriptDocumentTests.Serialize_RoundTrip_ProducesEqualDocument`. Use `System.Text.Json` to serialize and deserialize a fully-populated document. Assert equality. Fails if naming or attribute setup is wrong.
 4. **Green.** Add JSON attribute configuration as needed. Tests pass.
 5. **Red.** `SpeakerTurnTests.GroupConsecutive_TwoSpeakers_ProducesTwoTurns`. Take a list of 6 `TranscriptWord` (3 speaker A, 3 speaker B, in that order) and a helper `SpeakerTurn.GroupConsecutive(words)`. Assert exactly 2 turns with correct boundaries.
@@ -272,7 +281,7 @@ Test plan:
 **Files touched (new):**
 - `src/VoxFlow.Core/Resources/voxflow_diarize.py`
 - `src/VoxFlow.Core/Resources/python-requirements.txt` — (if not already created in P0.4, create here; otherwise amend with exact pinned versions validated against the script).
-- `tests/VoxFlow.Core.Tests/Services/Python/SidecarScriptContractTests.cs` — integration tests tagged `[Category("RequiresPython")]`.
+- `tests/VoxFlow.Core.Tests/Services/Python/SidecarScriptContractTests.cs` — integration tests tagged `[Trait("Category", "RequiresPython")]` at the class level.
 
 **Script shape:**
 
@@ -291,7 +300,7 @@ Test plan:
 
 1. Manual scaffolding: write the skeleton that reads stdin, parses JSON, routes by `version`, prints an error for unknown versions. Commit this as the first local-only step.
 2. Add the pyannote pipeline call. For now, just load the pretrained pipeline, pass `wavPath`, extract `speakers` and `segments`. Normalize speaker IDs to `A`, `B`, `C` in order of first appearance. Format per the schema.
-3. **Red (integration test).** `SidecarScriptContractTests.RunAgainstSingleSpeakerWav_ReturnsOkResponse_WithOneSpeaker`. Requires the Obama fixture from P0.8 — if fixtures aren't ready yet, use a local file path passed via env var and skip in CI until P0.8 lands. Assert response matches schema, `status=ok`, `speakers.Count==1`.
+3. **Red (integration test).** `SidecarScriptContractTests.RunAgainstSingleSpeakerWav_ReturnsOkResponse_WithOneSpeaker`. Requires the Obama fixture from P0.8. Until P0.8 lands, guard the test with `Skip.IfNot(File.Exists(fixturePath), "fixture not yet committed; will be enabled in P0.8")` using `Xunit.SkippableFact` (add the `Xunit.SkippableFact` NuGet package to `VoxFlow.Core.Tests.csproj` in this PR). Assert response matches schema, `status=ok`, `speakers.Count==1`.
 4. **Green.** Fix the script until the test passes. This is where the contract gets exercised against real pyannote.
 5. **Red.** `RunAgainstTwoSpeakerWav_ReturnsOkResponse_WithTwoSpeakers`. Same pattern.
 6. **Green.** Ensure speaker ID normalization is stable across runs.
@@ -316,8 +325,9 @@ Python side of the speaker-labeling JSON contract (ADR-024 Phase 0).
 Reads {wavPath} on stdin, runs pyannote diarization, writes speakers
 and segments on stdout per sidecar-diarization-v1 schema. Error
 envelope on recoverable failures; non-zero exit only on malformed
-input. Integration tests behind [Category("RequiresPython")] — require
-pyannote installed locally.
+input. Integration tests behind [Trait("Category", "RequiresPython")]
+— require pyannote installed locally. SkippableFact used where the
+fixture isn't committed yet (P0.8).
 
 Test plan:
 - [x] dotnet test — green (excluding RequiresPython)
@@ -341,7 +351,7 @@ Test plan:
 - `src/VoxFlow.Core/Models/DiarizationSpeaker.cs`, `DiarizationSegment.cs`.
 - `src/VoxFlow.Core/Models/SidecarFailureReason.cs` — enum: `RuntimeNotReady`, `ProcessCrashed`, `Timeout`, `MalformedJson`, `SchemaViolation`, `ErrorResponseReturned`.
 - `tests/VoxFlow.Core.Tests/Services/Diarization/PyannoteSidecarClientTests.cs`
-- `tests/VoxFlow.Core.Tests/Services/Diarization/PyannoteSidecarClientIntegrationTests.cs` — `[Category("RequiresPython")]`.
+- `tests/VoxFlow.Core.Tests/Services/Diarization/PyannoteSidecarClientIntegrationTests.cs` — `[Trait("Category", "RequiresPython")]` on the class; any tests that depend on a not-yet-committed fixture use `SkippableFact` + `Skip.IfNot(File.Exists(path), ...)`.
 
 **Interface shape:**
 ```csharp
@@ -378,7 +388,7 @@ Failures throw `DiarizationSidecarException(SidecarFailureReason reason, string 
 
 **TDD steps — integration tests (real Python):**
 
-1. `DiarizeAsync_RealSidecar_SingleSpeakerWav_Returns1Speaker`. Uses the real `ManagedVenvRuntime` pointing at the developer's dev venv, real `voxflow_diarize.py`, real Obama fixture. Tagged `[Category("RequiresPython")]`. Confirms the full contract holds end-to-end.
+1. `DiarizeAsync_RealSidecar_SingleSpeakerWav_Returns1Speaker`. Uses the real `ManagedVenvRuntime` pointing at the developer's dev venv, real `voxflow_diarize.py`, real Obama fixture. Class tagged `[Trait("Category", "RequiresPython")]`; test is a `SkippableFact` that calls `Skip.IfNot(File.Exists(fixturePath), …)` so the suite still goes green before P0.8 commits the WAV. Confirms the full contract holds end-to-end.
 2. `DiarizeAsync_RealSidecar_TwoSpeakerWav_Returns2Speakers`.
 3. `DiarizeAsync_RealSidecar_ThreeSpeakerWav_ReturnsAtLeast3Speakers`.
 
@@ -396,7 +406,7 @@ Bridges IPythonRuntime and voxflow_diarize.py. Handles stdin writing,
 stdout/stderr reading, schema validation, timeouts, cancellation,
 progress forwarding, and failure taxonomy. Unit-tested with fake
 runtime/launcher; integration-tested against real pyannote under
-[Category("RequiresPython")].
+[Trait("Category", "RequiresPython")].
 
 Test plan:
 - [x] dotnet test — green
@@ -450,6 +460,7 @@ public interface ISpeakerMergeService
 13. `Merge_RecordsProvidedMetadata`. `DiarizationModel`, `SidecarVersion` passed through unchanged.
 14. `Merge_OrdinalLabelsAreStableAcrossCalls`. Run twice on the same input; compare.
 15. `Merge_DetectedSpeakerCountReflectsRosterSize`.
+16. `Merge_FlattenWordsAcrossSegments_PreservesStartTimeOrdering`. Input: three `FilteredSegment`s where segment boundaries do **not** correspond to word boundaries (some segments have more than one word, one segment has none), passed in chronological order. Assert that the resulting `TranscriptWord` list is a single chronologically-sorted sequence and that a segment with an empty `Words` list (i.e. `Array.Empty<WhisperToken>()` — the default from P0.1) does not crash the merge and is simply contributed as zero words. This guards the contract with P0.1 explicitly.
 
 **Fixture files** are hand-authored JSON:
 - `*-tokens.json` — array of `{"text", "startSec", "endSec"}` objects representing Whisper word tokens. Tests deserialize them and convert to `WhisperToken`/`FilteredSegment` as appropriate.
@@ -467,9 +478,9 @@ Add SpeakerMergeService
 Pure-logic merge of Whisper word tokens and diarization speaker
 segments into a TranscriptDocument. Handles overlap matching,
 ordinal label normalization, turn grouping, total-duration
-computation, and edge cases (empty, single-speaker, straddling,
-uncovered). ~15 unit tests against hand-authored JSON fixtures.
-No I/O, no mocks.
+computation, flatten/order across segment boundaries, and edge
+cases (empty, single-speaker, straddling, uncovered, empty-Words).
+16 unit tests against hand-authored JSON fixtures. No I/O, no mocks.
 
 Test plan:
 - [x] dotnet test — green
@@ -488,9 +499,9 @@ Test plan:
 - `tests/fixtures/sidecar/audio/libricss-2spk-10s.wav` — extracted from LibriCSS `0L` session (0% overlap, 2-speaker mix), ~10s, 16kHz mono PCM. Source noted in `README-fixtures.md`.
 - `tests/fixtures/sidecar/audio/libricss-3spk-10s.wav` — extracted from LibriCSS 4-speaker mix, ~10s window containing audio from 3+ speakers.
 - `tests/fixtures/sidecar/audio/README-fixtures.md` — source URLs, licenses (CC BY 4.0 for LibriCSS, user-provided for Obama), exact ffmpeg commands used to trim, and any post-processing notes.
-- `tests/fixtures/sidecar/SIZE-BUDGET.md` — documents that each fixture must be <200 KB (10s × 16kHz × 16bit mono = ~320 KB per file; we apply lossless FLAC→WAV round-trip or use direct WAV, aiming for <1 MB total in the repo).
+- `tests/fixtures/sidecar/SIZE-BUDGET.md` — 10s × 16 kHz × 16-bit mono PCM is ~320 KB per file, so the budget is **<400 KB per fixture** and **<1 MB total** across the three WAVs. Anything larger has to be shortened or down-mixed before commit; the .gitattributes section in that doc pins these files to plain LFS-unaware binary storage (no LFS) so the repo stays self-contained.
 
-**TDD steps:** No new tests are introduced in this PR. Instead, the integration tests from P0.5 and P0.6 that previously skipped (via `if (!File.Exists(fixturePath)) Assert.Inconclusive(...)`) now run fully green because the fixtures exist.
+**TDD steps:** No new tests are introduced in this PR. Instead, the `SkippableFact`-guarded integration tests from P0.5 and P0.6 — which previously skipped via `Skip.IfNot(File.Exists(fixturePath), …)` — now run fully green because the fixtures exist.
 
 **Operational steps (scripted, not TDD):**
 
@@ -515,10 +526,11 @@ Three 10-second WAV fixtures for the sidecar integration test suite:
 - obama-speech-1spk-10s.wav (trimmed from artifacts/input)
 - libricss-2spk-10s.wav (LibriCSS 0L session, CC BY 4.0)
 - libricss-3spk-10s.wav (LibriCSS overlap session, CC BY 4.0)
-All 16 kHz mono s16le, ~10 s each, total <1 MB. Sources, licenses,
-and reproduction commands in README-fixtures.md. Completes Phase 0:
-[Category("RequiresPython")] integration tests now run fully green
-against real audio.
+All 16 kHz mono s16le, ~10 s each, <400 KB per file, <1 MB total.
+Sources, licenses, and reproduction commands in README-fixtures.md.
+Completes Phase 0: [Trait("Category", "RequiresPython")] integration
+tests (P0.5/P0.6) now run fully green against real audio, with no
+SkippableFact skips.
 
 Test plan:
 - [x] dotnet test — green
