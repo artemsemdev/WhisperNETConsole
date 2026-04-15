@@ -65,11 +65,14 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
                 RuntimeBootstrapped: runtimeBootstrapped);
         }
 
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         DiarizationResult diarization;
         try
         {
             diarization = await _sidecar
-                .DiarizeAsync(new DiarizationRequest(wavPath), progress: null, cancellationToken)
+                .DiarizeAsync(new DiarizationRequest(wavPath), progress: null, linkedCts.Token)
                 .ConfigureAwait(false);
         }
         catch (DiarizationSidecarException ex)
@@ -77,6 +80,13 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
             return new SpeakerEnrichmentResult(
                 Document: null,
                 Warnings: new[] { FormatSidecarWarning(ex.Reason, ex.Message) },
+                RuntimeBootstrapped: runtimeBootstrapped);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+        {
+            return new SpeakerEnrichmentResult(
+                Document: null,
+                Warnings: new[] { $"speaker-labeling: timed out after {options.TimeoutSeconds}s" },
                 RuntimeBootstrapped: runtimeBootstrapped);
         }
 

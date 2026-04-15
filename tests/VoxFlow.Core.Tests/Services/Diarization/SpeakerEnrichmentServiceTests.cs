@@ -222,6 +222,61 @@ public sealed class SpeakerEnrichmentServiceTests
         Assert.Equal("speaker-labeling: process-crashed: exit code -6", result.Warnings[0]);
     }
 
+    [Fact]
+    public async Task EnrichAsync_Enabled_SidecarTimesOut_ReturnsWarning_AndDoesNotRethrow()
+    {
+        var runtime = new FakePythonRuntime();
+        var sidecar = new FakeDiarizationSidecar(async (_, _, ct) =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+            return new DiarizationResult(1, Array.Empty<DiarizationSpeaker>(), Array.Empty<DiarizationSegment>());
+        });
+        var mergeService = new ThrowingSpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        var result = await service.EnrichAsync(
+            wavPath: "/tmp/audio.wav",
+            segments: EmptySegments,
+            metadata: Metadata,
+            options: EnabledOptions(timeoutSeconds: 1),
+            progress: null,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Null(result.Document);
+        Assert.Single(result.Warnings);
+        Assert.Equal("speaker-labeling: timed out after 1s", result.Warnings[0]);
+    }
+
+    [Fact]
+    public async Task EnrichAsync_OuterCancellation_Rethrows()
+    {
+        var runtime = new FakePythonRuntime();
+        using var cts = new CancellationTokenSource();
+        var sidecar = new FakeDiarizationSidecar(async (_, _, ct) =>
+        {
+            cts.Cancel();
+            await Task.Delay(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+            return new DiarizationResult(1, Array.Empty<DiarizationSpeaker>(), Array.Empty<DiarizationSegment>());
+        });
+        var mergeService = new ThrowingSpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+        {
+            await service.EnrichAsync(
+                wavPath: "/tmp/audio.wav",
+                segments: EmptySegments,
+                metadata: Metadata,
+                options: EnabledOptions(timeoutSeconds: 600),
+                progress: null,
+                cancellationToken: cts.Token);
+        });
+    }
+
     private sealed class RecordingBootstrapper : IManagedVenvBootstrapper
     {
         public int CallCount { get; private set; }
