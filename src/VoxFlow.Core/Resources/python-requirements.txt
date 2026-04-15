@@ -10,3 +10,8 @@
 pyannote.audio==3.3.2
 torch>=2.2,<3
 torchaudio>=2.2,<3
+# huggingface_hub 0.32 removed the `use_auth_token` kwarg from hf_hub_download
+# in favor of `token=`. pyannote.audio 3.3.2 still passes use_auth_token and
+# breaks at pipeline-load time with "got an unexpected keyword argument
+# 'use_auth_token'". Pin the hub below 0.32 until pyannote releases a fix.
+huggingface_hub>=0.23,<0.32
