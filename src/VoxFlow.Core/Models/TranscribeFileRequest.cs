@@ -8,4 +8,5 @@ public sealed record TranscribeFileRequest(
     string? ResultFilePath = null,
     string? ConfigurationPath = null,
     IReadOnlyList<string>? ForceLanguages = null,
-    bool OverwriteExistingResult = true);
+    bool OverwriteExistingResult = true,
+    bool? EnableSpeakers = null);
