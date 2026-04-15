@@ -11,7 +11,22 @@ namespace VoxFlow.Core.Services.Python;
 /// </summary>
 public sealed class DefaultProcessLauncher : IProcessLauncher
 {
-    public async Task<ProcessExecutionResult> RunAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
+    public Task<ProcessExecutionResult> RunAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken)
+        => RunInternalAsync(startInfo, stdIn: null, cancellationToken);
+
+    public Task<ProcessExecutionResult> RunAsync(
+        ProcessStartInfo startInfo,
+        string stdIn,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(stdIn);
+        return RunInternalAsync(startInfo, stdIn, cancellationToken);
+    }
+
+    private static async Task<ProcessExecutionResult> RunInternalAsync(
+        ProcessStartInfo startInfo,
+        string? stdIn,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
 
@@ -19,6 +34,10 @@ public sealed class DefaultProcessLauncher : IProcessLauncher
         startInfo.RedirectStandardError = true;
         startInfo.UseShellExecute = false;
         startInfo.CreateNoWindow = true;
+        if (stdIn is not null)
+        {
+            startInfo.RedirectStandardInput = true;
+        }
 
         using var process = new Process { StartInfo = startInfo };
         process.Start();
@@ -37,6 +56,12 @@ public sealed class DefaultProcessLauncher : IProcessLauncher
                 // Process may have exited between HasExited check and Kill; swallow.
             }
         });
+
+        if (stdIn is not null)
+        {
+            await process.StandardInput.WriteAsync(stdIn.AsMemory(), cancellationToken).ConfigureAwait(false);
+            process.StandardInput.Close();
+        }
 
         var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);

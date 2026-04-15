@@ -11,4 +11,16 @@ namespace VoxFlow.Core.Interfaces;
 public interface IProcessLauncher
 {
     Task<ProcessExecutionResult> RunAsync(ProcessStartInfo startInfo, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Variant that writes <paramref name="stdIn"/> to the child's standard
+    /// input (closing it afterwards) and captures stdout/stderr as strings.
+    /// Phase 0 buffers stderr and forwards it to the caller after the process
+    /// exits; real-time stderr streaming can be added later without breaking
+    /// the interface.
+    /// </summary>
+    Task<ProcessExecutionResult> RunAsync(
+        ProcessStartInfo startInfo,
+        string stdIn,
+        CancellationToken cancellationToken);
 }
