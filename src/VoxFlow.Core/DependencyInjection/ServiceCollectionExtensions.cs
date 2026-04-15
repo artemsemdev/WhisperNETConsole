@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITranscriptReader, TranscriptReader>();
         services.AddSingleton<ISpeakerMergeService, SpeakerMergeService>();
         services.AddSingleton<ISpeakerEnrichmentService, NullSpeakerEnrichmentService>();
+        services.AddSingleton<ISpeakerLabelingPreflight, NullSpeakerLabelingPreflight>();
         services.AddSingleton<IVoxflowTranscriptArtifactWriter, VoxflowTranscriptArtifactWriter>();
         services.AddSingleton<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IBatchTranscriptionService, BatchTranscriptionService>();

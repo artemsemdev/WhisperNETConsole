@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
+using VoxFlow.Core.Services.Diarization;
+using VoxFlow.Core.Services.Python;
 using Whisper.net;
 
 namespace VoxFlow.Core.Services;
@@ -18,10 +20,19 @@ namespace VoxFlow.Core.Services;
 internal sealed class ValidationService : IValidationService
 {
     private readonly IAudioConversionService _audioConversion;
+    private readonly ISpeakerLabelingPreflight _speakerPreflight;
 
     public ValidationService(IAudioConversionService audioConversion)
+        : this(audioConversion, new NullSpeakerLabelingPreflight())
+    {
+    }
+
+    public ValidationService(
+        IAudioConversionService audioConversion,
+        ISpeakerLabelingPreflight speakerPreflight)
     {
         _audioConversion = audioConversion;
+        _speakerPreflight = speakerPreflight;
     }
 
     /// <summary>
@@ -66,6 +77,11 @@ internal sealed class ValidationService : IValidationService
         results.Add(checks.CheckLanguageSupport
             ? CheckLanguageSupport(options)
             : new ValidationCheck("Language support", ValidationCheckStatus.Skipped, "Check disabled by configuration."));
+
+        if (options.SpeakerLabeling.Enabled && checks.CheckSpeakerLabelingRuntime)
+        {
+            results.AddRange(await CheckSpeakerLabelingAsync(options, cancellationToken).ConfigureAwait(false));
+        }
 
         if (options.IsBatchMode)
         {
@@ -251,6 +267,82 @@ internal sealed class ValidationService : IValidationService
         {
             return new ValidationCheck("Language support", ValidationCheckStatus.Failed, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Verifies speaker-labeling prerequisites: the Python runtime status and
+    /// the presence of the configured diarization model in the local cache.
+    /// Failures surface as warnings so startup never blocks on them.
+    /// </summary>
+    private async Task<IReadOnlyList<ValidationCheck>> CheckSpeakerLabelingAsync(
+        TranscriptionOptions options,
+        CancellationToken cancellationToken)
+    {
+        var results = new List<ValidationCheck>();
+        PythonRuntimeStatus runtimeStatus;
+        try
+        {
+            runtimeStatus = await _speakerPreflight.GetRuntimeStatusAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            results.Add(new ValidationCheck(
+                "Speaker labeling runtime",
+                ValidationCheckStatus.Warning,
+                $"Preflight probe failed: {ex.Message}"));
+            return results;
+        }
+
+        if (runtimeStatus.IsReady)
+        {
+            results.Add(new ValidationCheck(
+                "Speaker labeling runtime",
+                ValidationCheckStatus.Passed,
+                $"Python {runtimeStatus.Version} at {runtimeStatus.InterpreterPath}"));
+        }
+        else
+        {
+            results.Add(new ValidationCheck(
+                "Speaker labeling runtime",
+                ValidationCheckStatus.Warning,
+                runtimeStatus.Error ?? "Python runtime is not ready."));
+        }
+
+        var modelId = options.SpeakerLabeling.ModelId;
+        bool cached;
+        try
+        {
+            cached = _speakerPreflight.IsModelCached(modelId);
+        }
+        catch (Exception ex)
+        {
+            results.Add(new ValidationCheck(
+                "Speaker labeling model cache",
+                ValidationCheckStatus.Warning,
+                $"Cache probe failed for {modelId}: {ex.Message}"));
+            return results;
+        }
+
+        if (!cached)
+        {
+            results.Add(new ValidationCheck(
+                "Speaker labeling model cache",
+                ValidationCheckStatus.Warning,
+                $"Model {modelId} is not cached and will be downloaded on first run."));
+        }
+        else
+        {
+            results.Add(new ValidationCheck(
+                "Speaker labeling model cache",
+                ValidationCheckStatus.Passed,
+                $"Model {modelId} is present in the local cache."));
+        }
+
+        return results;
     }
 
     /// <summary>
