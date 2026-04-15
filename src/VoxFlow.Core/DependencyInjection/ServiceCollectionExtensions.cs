@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Services;
+using VoxFlow.Core.Services.Diarization;
 
 namespace VoxFlow.Core.DependencyInjection;
 
@@ -27,6 +28,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFileDiscoveryService, FileDiscoveryService>();
         services.AddSingleton<IBatchSummaryWriter, BatchSummaryWriter>();
         services.AddSingleton<ITranscriptReader, TranscriptReader>();
+        services.AddSingleton<ISpeakerMergeService, SpeakerMergeService>();
+        services.AddSingleton<ISpeakerEnrichmentService, NullSpeakerEnrichmentService>();
         services.AddSingleton<ITranscriptionService, TranscriptionService>();
         services.AddSingleton<IBatchTranscriptionService, BatchTranscriptionService>();
         return services;
