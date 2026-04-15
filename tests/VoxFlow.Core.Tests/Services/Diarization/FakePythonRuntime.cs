@@ -18,10 +18,19 @@ internal sealed class FakePythonRuntime : IPythonRuntime
     public string InterpreterPath { get; set; } = "/fake/venv/bin/python3";
     public PythonRuntimeStatus NextStatus { get; set; }
         = PythonRuntimeStatus.Ready("/fake/venv/bin/python3", "3.11.0");
+    public Queue<PythonRuntimeStatus> StatusQueue { get; } = new();
+    public int GetStatusCallCount { get; private set; }
     public List<(string ScriptPath, string[] Args)> StartInfoRequests { get; } = new();
 
     public Task<PythonRuntimeStatus> GetStatusAsync(CancellationToken cancellationToken)
-        => Task.FromResult(NextStatus);
+    {
+        GetStatusCallCount++;
+        if (StatusQueue.Count > 0)
+        {
+            return Task.FromResult(StatusQueue.Dequeue());
+        }
+        return Task.FromResult(NextStatus);
+    }
 
     public ProcessStartInfo CreateStartInfo(string scriptPath, IEnumerable<string> arguments)
     {

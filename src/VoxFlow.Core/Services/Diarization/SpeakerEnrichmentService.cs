@@ -1,6 +1,7 @@
 using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
+using VoxFlow.Core.Services.Python;
 
 namespace VoxFlow.Core.Services.Diarization;
 
@@ -46,10 +47,18 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
             return SpeakerEnrichmentResult.Empty;
         }
 
+        var runtimeBootstrapped = false;
         var status = await _runtime.GetStatusAsync(cancellationToken).ConfigureAwait(false);
+        if (!status.IsReady && status.CanBootstrap)
+        {
+            await _bootstrapper.BootstrapAsync(progress: null, cancellationToken).ConfigureAwait(false);
+            runtimeBootstrapped = true;
+            status = await _runtime.GetStatusAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (!status.IsReady)
         {
-            throw new NotImplementedException("runtime-not-ready path lands in a later TDD step");
+            throw new NotImplementedException("non-bootstrapable not-ready path lands in a later TDD step");
         }
 
         var diarization = await _sidecar
@@ -57,6 +66,6 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
             .ConfigureAwait(false);
 
         var document = _mergeService.Merge(segments, diarization, metadata);
-        return new SpeakerEnrichmentResult(document, Array.Empty<string>(), RuntimeBootstrapped: false);
+        return new SpeakerEnrichmentResult(document, Array.Empty<string>(), runtimeBootstrapped);
     }
 }
