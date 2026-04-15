@@ -37,11 +37,12 @@ existing clip.
 
 | File | Size | Status |
 |---|---|---|
-| `audio/obama-speech-1spk-10s.wav` | ~313 KB | committed (P0.8 part 1) |
-| `audio/libricss-2spk-10s.wav` | — | reserved, not yet committed |
-| `audio/libricss-3spk-10s.wav` | — | reserved, not yet committed |
+| `audio/obama-speech-1spk-10s.wav` | ~313 KB | committed |
+| `audio/libricss-2spk-10s.wav` | ~313 KB | committed |
+| `audio/libricss-3spk-10s.wav` | ~313 KB | committed |
 
-Aggregate committed: **~313 KB / 1 MB** (31%).
+Aggregate committed: **~938 KB / 1 MB** (92%). No room remains under the
+cap; any new clip requires trimming or evicting an existing fixture.
 
 ## `.gitattributes` — no LFS
 
