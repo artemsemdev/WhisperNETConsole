@@ -16,6 +16,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="NJsonSchema" Version="11.1.0" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,5 +36,7 @@
 
   <ItemGroup>
     <None Include="..\..\docs\contracts\*.json" Link="contracts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\VoxFlow.Core\Resources\voxflow_diarize.py" Link="python\voxflow_diarize.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\VoxFlow.Core\Resources\python-requirements.txt" Link="python\python-requirements.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -23,4 +23,13 @@
     </Reference>
   </ItemGroup>
 
+  <!--
+    Resources\voxflow_diarize.py and python-requirements.txt live here because
+    VoxFlow.Core owns the Python sidecar contract. They are NOT CopyToOutputDirectory
+    at the Core level — that would flow them transitively into the MacCatalyst app
+    bundle, which doesn't know how to place them. Tests link them directly (see
+    tests/VoxFlow.Core.Tests/VoxFlow.Core.Tests.csproj). Production packaging will
+    wire them into the app bundle explicitly in a later phase (ADR-024 P1+).
+  -->
+
 </Project>
