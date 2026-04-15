@@ -3,5 +3,5 @@
 # Torch wheels are resolved from PyPI defaults; override via pip --extra-index-url
 # if a CUDA/ROCm build is required at runtime.
 pyannote.audio==3.3.2
-torch==2.4.0
-torchaudio==2.4.0
+torch==2.5.1
+torchaudio==2.5.1
