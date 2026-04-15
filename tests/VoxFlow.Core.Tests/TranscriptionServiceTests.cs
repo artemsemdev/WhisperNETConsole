@@ -130,6 +130,69 @@ public sealed class TranscriptionServiceTests
     }
 
     [Fact]
+    public async Task TranscribeFileAsync_EnabledWithDocument_WritesVoxflowJsonArtifact()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+        var resultPath = Path.Combine(directory.Path, "result.txt");
+
+        var document = BuildDocument();
+        var enrichment = new RecordingEnrichmentService
+        {
+            NextResult = new SpeakerEnrichmentResult(document, Array.Empty<string>(), RuntimeBootstrapped: false)
+        };
+        var artifactWriter = new RecordingArtifactWriter();
+        var service = BuildService(settingsPath, enrichment, artifactWriter);
+
+        await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: resultPath));
+
+        Assert.Equal(1, artifactWriter.CallCount);
+        Assert.Equal(resultPath, artifactWriter.LastResultPath);
+        Assert.Same(document, artifactWriter.LastDocument);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_EnabledWithNullDocument_DoesNotWriteVoxflowJsonArtifact()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+
+        var enrichment = new RecordingEnrichmentService
+        {
+            NextResult = new SpeakerEnrichmentResult(
+                Document: null,
+                Warnings: new[] { "speaker-labeling: sidecar-crashed: boom" },
+                RuntimeBootstrapped: false)
+        };
+        var artifactWriter = new RecordingArtifactWriter();
+        var service = BuildService(settingsPath, enrichment, artifactWriter);
+
+        await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt")));
+
+        Assert.Equal(0, artifactWriter.CallCount);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_DisabledPath_DoesNotWriteVoxflowJsonArtifact()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: false);
+
+        var artifactWriter = new RecordingArtifactWriter();
+        var service = BuildService(settingsPath, new RecordingEnrichmentService(), artifactWriter);
+
+        await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt")));
+
+        Assert.Equal(0, artifactWriter.CallCount);
+    }
+
+    [Fact]
     public async Task TranscribeFileAsync_EnabledWithDocument_PassesSpeakerTranscriptToOutputWriter()
     {
         using var directory = new TemporaryDirectory();
@@ -149,7 +212,8 @@ public sealed class TranscriptionServiceTests
             new SuccessfulWavAudioLoader(),
             new SingleSegmentLanguageSelectionService(),
             writer,
-            enrichment);
+            enrichment,
+            new RecordingArtifactWriter());
 
         await service.TranscribeFileAsync(new TranscribeFileRequest(
             InputPath: "/fake/input.m4a",
@@ -174,7 +238,8 @@ public sealed class TranscriptionServiceTests
             new SuccessfulWavAudioLoader(),
             new SingleSegmentLanguageSelectionService(),
             writer,
-            new RecordingEnrichmentService());
+            new RecordingEnrichmentService(),
+            new RecordingArtifactWriter());
 
         await service.TranscribeFileAsync(new TranscribeFileRequest(
             InputPath: "/fake/input.m4a",
@@ -267,6 +332,12 @@ public sealed class TranscriptionServiceTests
     private static TranscriptionService BuildService(
         string settingsPath,
         ISpeakerEnrichmentService enrichment)
+        => BuildService(settingsPath, enrichment, new RecordingArtifactWriter());
+
+    private static TranscriptionService BuildService(
+        string settingsPath,
+        ISpeakerEnrichmentService enrichment,
+        IVoxflowTranscriptArtifactWriter artifactWriter)
     {
         return new TranscriptionService(
             new StubConfigurationService(settingsPath),
@@ -276,7 +347,23 @@ public sealed class TranscriptionServiceTests
             new SuccessfulWavAudioLoader(),
             new SingleSegmentLanguageSelectionService(),
             new NoOpOutputWriter(),
-            enrichment);
+            enrichment,
+            artifactWriter);
+    }
+
+    private sealed class RecordingArtifactWriter : IVoxflowTranscriptArtifactWriter
+    {
+        public int CallCount { get; private set; }
+        public string? LastResultPath { get; private set; }
+        public TranscriptDocument? LastDocument { get; private set; }
+
+        public Task WriteAsync(string resultPath, TranscriptDocument document, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastResultPath = resultPath;
+            LastDocument = document;
+            return Task.CompletedTask;
+        }
     }
 
     private static string WriteSettings(TemporaryDirectory directory, bool speakerLabelingEnabled)

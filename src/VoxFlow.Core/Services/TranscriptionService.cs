@@ -18,6 +18,7 @@ internal sealed class TranscriptionService : ITranscriptionService
     private readonly ILanguageSelectionService _languageSelection;
     private readonly IOutputWriter _outputWriter;
     private readonly ISpeakerEnrichmentService _speakerEnrichment;
+    private readonly IVoxflowTranscriptArtifactWriter _artifactWriter;
 
     public TranscriptionService(
         IConfigurationService configService,
@@ -27,7 +28,8 @@ internal sealed class TranscriptionService : ITranscriptionService
         IWavAudioLoader wavLoader,
         ILanguageSelectionService languageSelection,
         IOutputWriter outputWriter,
-        ISpeakerEnrichmentService speakerEnrichment)
+        ISpeakerEnrichmentService speakerEnrichment,
+        IVoxflowTranscriptArtifactWriter artifactWriter)
     {
         _configService = configService;
         _validationService = validationService;
@@ -37,6 +39,7 @@ internal sealed class TranscriptionService : ITranscriptionService
         _languageSelection = languageSelection;
         _outputWriter = outputWriter;
         _speakerEnrichment = speakerEnrichment;
+        _artifactWriter = artifactWriter;
     }
 
     public async Task<TranscribeFileResult> TranscribeFileAsync(
@@ -152,6 +155,11 @@ internal sealed class TranscriptionService : ITranscriptionService
             SpeakerTranscript: speakerTranscript);
 
         await _outputWriter.WriteAsync(resultPath, selectionResult.AcceptedSegments, outputContext, cancellationToken);
+
+        if (speakerTranscript is not null)
+        {
+            await _artifactWriter.WriteAsync(resultPath, speakerTranscript, cancellationToken);
+        }
 
         stopwatch.Stop();
 

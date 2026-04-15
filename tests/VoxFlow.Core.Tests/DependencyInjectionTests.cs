@@ -35,5 +35,6 @@ public class DependencyInjectionTests
         Assert.NotNull(provider.GetService<IBatchTranscriptionService>());
         Assert.NotNull(provider.GetService<ISpeakerMergeService>());
         Assert.NotNull(provider.GetService<ISpeakerEnrichmentService>());
+        Assert.NotNull(provider.GetService<IVoxflowTranscriptArtifactWriter>());
     }
 }
