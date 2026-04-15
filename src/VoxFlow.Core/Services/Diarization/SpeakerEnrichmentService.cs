@@ -107,7 +107,10 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
         }
 
         var document = _mergeService.Merge(segments, diarization, metadata);
-        return new SpeakerEnrichmentResult(document, Array.Empty<string>(), runtimeBootstrapped);
+        var warnings = document.Speakers.Count == 0
+            ? new[] { "speaker-labeling: diarization returned zero speakers" }
+            : Array.Empty<string>();
+        return new SpeakerEnrichmentResult(document, warnings, runtimeBootstrapped);
     }
 
     private static string FormatSidecarWarning(SidecarFailureReason reason, string message)

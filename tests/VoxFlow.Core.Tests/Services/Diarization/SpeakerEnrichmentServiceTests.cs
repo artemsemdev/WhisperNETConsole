@@ -336,6 +336,34 @@ public sealed class SpeakerEnrichmentServiceTests
         Assert.True(diarizingUpdates[0].PercentComplete < diarizingUpdates[1].PercentComplete);
     }
 
+    [Fact]
+    public async Task EnrichAsync_MergeServiceReturnsEmpty_ProducesWarning()
+    {
+        var runtime = new FakePythonRuntime();
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: Array.Empty<DiarizationSpeaker>(),
+            Segments: Array.Empty<DiarizationSegment>());
+        var sidecar = new FakeDiarizationSidecar((_, _, _) => Task.FromResult(diarization));
+        var mergeService = new SpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        var result = await service.EnrichAsync(
+            wavPath: "/tmp/audio.wav",
+            segments: EmptySegments,
+            metadata: Metadata,
+            options: EnabledOptions(),
+            progress: null,
+            cancellationToken: CancellationToken.None);
+
+        Assert.NotNull(result.Document);
+        Assert.Empty(result.Document!.Speakers);
+        Assert.Single(result.Warnings);
+        Assert.Equal("speaker-labeling: diarization returned zero speakers", result.Warnings[0]);
+    }
+
     private sealed class RecordingBootstrapper : IManagedVenvBootstrapper
     {
         public int CallCount { get; private set; }
