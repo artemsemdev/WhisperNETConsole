@@ -1,0 +1,7 @@
+# VoxFlow local speaker-labeling sidecar dependencies (ADR-024 Phase 1).
+# Pinned versions — update deliberately and re-verify against voxflow_diarize.py.
+# Torch wheels are resolved from PyPI defaults; override via pip --extra-index-url
+# if a CUDA/ROCm build is required at runtime.
+pyannote.audio==3.3.2
+torch==2.4.0
+torchaudio==2.4.0
