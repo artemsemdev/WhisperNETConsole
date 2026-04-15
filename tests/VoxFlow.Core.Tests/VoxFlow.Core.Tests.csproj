@@ -38,5 +38,7 @@
     <None Include="..\..\docs\contracts\*.json" Link="contracts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\VoxFlow.Core\Resources\voxflow_diarize.py" Link="python\voxflow_diarize.py" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\VoxFlow.Core\Resources\python-requirements.txt" Link="python\python-requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\sidecar\responses\*.json" Link="fixtures\sidecar\responses\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\sidecar\words\*.json" Link="fixtures\sidecar\words\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
