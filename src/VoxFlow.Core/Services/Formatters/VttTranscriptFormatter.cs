@@ -26,7 +26,16 @@ internal sealed class VttTranscriptFormatter : ITranscriptFormatter
             builder.Append(FormatVttTimestamp(segment.Start));
             builder.Append(" --> ");
             builder.AppendLine(FormatVttTimestamp(segment.End));
-            builder.AppendLine(segment.Text.Trim());
+
+            var text = segment.Text.Trim();
+            if (context.SpeakerTranscript is { } document
+                && SpeakerSegmentMapper.ResolveSpeakerId(segment, document) is { } speakerId)
+            {
+                builder.Append("<v Speaker ");
+                builder.Append(speakerId);
+                builder.Append('>');
+            }
+            builder.AppendLine(text);
         }
 
         return builder.ToString();

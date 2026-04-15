@@ -186,6 +186,31 @@ public sealed class TranscriptFormatterTests
         Assert.StartsWith("WEBVTT", output);
     }
 
+    [Fact]
+    public void VttFormatter_WithTwoSpeakerDocument_RendersVoiceTags()
+    {
+        var formatter = new VttTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildSampleAlignedDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("<v Speaker A>Hello, this is a test.", output);
+        Assert.Contains("<v Speaker B>Second line here.", output);
+    }
+
+    [Fact]
+    public void VttFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new VttTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.DoesNotContain("<v ", withoutSpeakers);
+    }
+
     // -----------------------------------------------------------------------
     // JSON formatter
     // -----------------------------------------------------------------------
