@@ -165,7 +165,9 @@ public sealed class ValidationServiceSpeakerLabelingTests
 
         public bool ModelCached { get; set; } = true;
 
-        public Task<PythonRuntimeStatus> GetRuntimeStatusAsync(CancellationToken cancellationToken)
+        public Task<PythonRuntimeStatus> GetRuntimeStatusAsync(
+            SpeakerLabelingOptions options,
+            CancellationToken cancellationToken)
             => Task.FromResult(RuntimeStatus);
 
         public bool IsModelCached(string modelId) => ModelCached;
@@ -173,7 +175,9 @@ public sealed class ValidationServiceSpeakerLabelingTests
 
     private sealed class ThrowingSpeakerLabelingPreflight : ISpeakerLabelingPreflight
     {
-        public Task<PythonRuntimeStatus> GetRuntimeStatusAsync(CancellationToken cancellationToken)
+        public Task<PythonRuntimeStatus> GetRuntimeStatusAsync(
+            SpeakerLabelingOptions options,
+            CancellationToken cancellationToken)
             => throw new InvalidOperationException("preflight should not be called");
 
         public bool IsModelCached(string modelId)

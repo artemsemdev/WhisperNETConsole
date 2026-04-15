@@ -282,7 +282,9 @@ internal sealed class ValidationService : IValidationService
         PythonRuntimeStatus runtimeStatus;
         try
         {
-            runtimeStatus = await _speakerPreflight.GetRuntimeStatusAsync(cancellationToken).ConfigureAwait(false);
+            runtimeStatus = await _speakerPreflight
+                .GetRuntimeStatusAsync(options.SpeakerLabeling, cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

@@ -1,3 +1,4 @@
+using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Services.Python;
 
 namespace VoxFlow.Core.Interfaces;
@@ -10,7 +11,9 @@ namespace VoxFlow.Core.Interfaces;
 /// </summary>
 public interface ISpeakerLabelingPreflight
 {
-    Task<PythonRuntimeStatus> GetRuntimeStatusAsync(CancellationToken cancellationToken);
+    Task<PythonRuntimeStatus> GetRuntimeStatusAsync(
+        SpeakerLabelingOptions options,
+        CancellationToken cancellationToken);
 
     bool IsModelCached(string modelId);
 }
