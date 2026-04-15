@@ -44,9 +44,13 @@ jobs:
           dotnet build src/VoxFlow.Cli/VoxFlow.Cli.csproj --no-restore
           dotnet build src/VoxFlow.McpServer/VoxFlow.McpServer.csproj --no-restore
 
+      # Exclude Category=RequiresPython: these sidecar integration tests need pyannote installed
+      # and a diarization model available, which is out of scope for the default CI image. They
+      # are run on machines with the full Python/pyannote environment as part of the Post-Phase-0
+      # verification checklist in docs/delivery/local-speaker-labeling/.
       - name: Run core tests
         run: |
-          dotnet test tests/VoxFlow.Core.Tests/VoxFlow.Core.Tests.csproj --no-restore --logger "trx;LogFileName=VoxFlow.Core.Tests.trx"
+          dotnet test tests/VoxFlow.Core.Tests/VoxFlow.Core.Tests.csproj --no-restore --filter "Category!=RequiresPython" --logger "trx;LogFileName=VoxFlow.Core.Tests.trx"
           dotnet test tests/VoxFlow.Cli.Tests/VoxFlow.Cli.Tests.csproj --no-restore --logger "trx;LogFileName=VoxFlow.Cli.Tests.trx"
           dotnet test tests/VoxFlow.McpServer.Tests/VoxFlow.McpServer.Tests.csproj --no-restore --logger "trx;LogFileName=VoxFlow.McpServer.Tests.trx"
 

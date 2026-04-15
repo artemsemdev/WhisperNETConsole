@@ -126,6 +126,8 @@ public sealed class SidecarScriptContractTests
         return (process.ExitCode, stdOut, stdErr);
     }
 
+    private static readonly Version MinimumPythonVersion = new(3, 10);
+
     private static bool Python3Available()
     {
         try
@@ -144,8 +146,24 @@ public sealed class SidecarScriptContractTests
             {
                 return false;
             }
+            var stdOut = process.StandardOutput.ReadToEnd();
+            var stdErr = process.StandardError.ReadToEnd();
             process.WaitForExit(5000);
-            return process.ExitCode == 0;
+            if (process.ExitCode != 0)
+            {
+                return false;
+            }
+
+            // `python3 --version` prints "Python X.Y.Z" to stdout on 3.4+
+            // and to stderr on older builds — accept either.
+            var versionText = !string.IsNullOrWhiteSpace(stdOut) ? stdOut : stdErr;
+            var match = System.Text.RegularExpressions.Regex.Match(versionText, @"Python (\d+)\.(\d+)");
+            if (!match.Success)
+            {
+                return false;
+            }
+            var version = new Version(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value));
+            return version >= MinimumPythonVersion;
         }
         catch
         {

@@ -36,6 +36,8 @@ public sealed class PyannoteSidecarClientIntegrationTests
     public async Task DiarizeAsync_RealSidecar_SingleSpeakerWav_Returns1Speaker()
     {
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
+        Skip.IfNot(await SystemPythonRuntimeReadyAsync(),
+            "system python3 not ready (missing or below required 3.10)");
         Skip.IfNot(File.Exists(SingleSpeakerFixturePath),
             "fixture not yet committed; will be enabled in P0.8");
 
@@ -53,6 +55,8 @@ public sealed class PyannoteSidecarClientIntegrationTests
     public async Task DiarizeAsync_RealSidecar_TwoSpeakerWav_Returns2Speakers()
     {
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
+        Skip.IfNot(await SystemPythonRuntimeReadyAsync(),
+            "system python3 not ready (missing or below required 3.10)");
         Skip.IfNot(File.Exists(TwoSpeakerFixturePath),
             "fixture not yet committed; will be enabled in P0.8");
 
@@ -69,6 +73,8 @@ public sealed class PyannoteSidecarClientIntegrationTests
     public async Task DiarizeAsync_RealSidecar_ThreeSpeakerWav_ReturnsAtLeast3Speakers()
     {
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
+        Skip.IfNot(await SystemPythonRuntimeReadyAsync(),
+            "system python3 not ready (missing or below required 3.10)");
         Skip.IfNot(File.Exists(ThreeSpeakerFixturePath),
             "fixture not yet committed; will be enabled in P0.8");
 
@@ -86,5 +92,19 @@ public sealed class PyannoteSidecarClientIntegrationTests
         var launcher = new DefaultProcessLauncher();
         var runtime = new SystemPythonRuntime(launcher);
         return new PyannoteSidecarClient(runtime, launcher, ScriptPath, TimeSpan.FromMinutes(5));
+    }
+
+    private static async Task<bool> SystemPythonRuntimeReadyAsync()
+    {
+        try
+        {
+            var runtime = new SystemPythonRuntime(new DefaultProcessLauncher());
+            var status = await runtime.GetStatusAsync(CancellationToken.None);
+            return status.IsReady;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
