@@ -5,7 +5,8 @@ namespace VoxFlow.Core.Services.Python;
 /// virtual environment under the OS application-support directory
 /// (<c>~/Library/Application Support/VoxFlow/python-runtime/</c> on macOS;
 /// <c>%AppData%\VoxFlow\python-runtime\</c> on Windows) and points
-/// <see cref="RequirementsFilePath"/> at the embedded requirements file.
+/// <see cref="RequirementsFilePath"/> at the host-bundled requirements
+/// file under <c>{AppContext.BaseDirectory}/python/python-requirements.txt</c>.
 /// </summary>
 public sealed class DefaultVenvPaths : IVenvPaths
 {
@@ -13,7 +14,7 @@ public sealed class DefaultVenvPaths : IVenvPaths
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         Root = Path.Combine(appData, "VoxFlow", "python-runtime");
-        RequirementsFilePath = Path.Combine(Root, "requirements.txt");
+        RequirementsFilePath = Path.Combine(AppContext.BaseDirectory, "python", "python-requirements.txt");
     }
 
     public string Root { get; }
