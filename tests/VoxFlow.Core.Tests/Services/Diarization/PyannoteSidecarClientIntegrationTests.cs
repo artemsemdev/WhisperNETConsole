@@ -35,6 +35,7 @@ public sealed class PyannoteSidecarClientIntegrationTests
     [SkippableFact]
     public async Task DiarizeAsync_RealSidecar_SingleSpeakerWav_Returns1Speaker()
     {
+        Skip.IfNot(RequiresPythonOptedIn(), OptInSkipReason);
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
         Skip.IfNot(await SystemPythonRuntimeReadyAsync(),
             "system python3 not ready (missing or below required 3.10)");
@@ -54,6 +55,7 @@ public sealed class PyannoteSidecarClientIntegrationTests
     [SkippableFact]
     public async Task DiarizeAsync_RealSidecar_TwoSpeakerWav_Returns2Speakers()
     {
+        Skip.IfNot(RequiresPythonOptedIn(), OptInSkipReason);
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
         Skip.IfNot(await SystemPythonRuntimeReadyAsync(),
             "system python3 not ready (missing or below required 3.10)");
@@ -72,6 +74,7 @@ public sealed class PyannoteSidecarClientIntegrationTests
     [SkippableFact]
     public async Task DiarizeAsync_RealSidecar_ThreeSpeakerWav_ReturnsAtLeast3Speakers()
     {
+        Skip.IfNot(RequiresPythonOptedIn(), OptInSkipReason);
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
         Skip.IfNot(await SystemPythonRuntimeReadyAsync(),
             "system python3 not ready (missing or below required 3.10)");
@@ -93,6 +96,16 @@ public sealed class PyannoteSidecarClientIntegrationTests
         var runtime = new SystemPythonRuntime(launcher);
         return new PyannoteSidecarClient(runtime, launcher, ScriptPath, TimeSpan.FromMinutes(5));
     }
+
+    private const string OptInEnvironmentVariable = "VOXFLOW_RUN_REQUIRES_PYTHON_TESTS";
+    private const string OptInSkipReason =
+        "Set VOXFLOW_RUN_REQUIRES_PYTHON_TESTS=1 to run tests that require a real python3 with pyannote installed.";
+
+    private static bool RequiresPythonOptedIn()
+        => string.Equals(
+            Environment.GetEnvironmentVariable(OptInEnvironmentVariable),
+            "1",
+            StringComparison.Ordinal);
 
     private static async Task<bool> SystemPythonRuntimeReadyAsync()
     {
