@@ -170,6 +170,58 @@ public sealed class SpeakerEnrichmentServiceTests
         Assert.Equal(0, sidecar.CallCount);
     }
 
+    [Fact]
+    public async Task EnrichAsync_Enabled_SidecarReturnsErrorResponse_ReturnsWarning()
+    {
+        var runtime = new FakePythonRuntime();
+        var sidecar = new FakeDiarizationSidecar((_, _, _) =>
+            throw new DiarizationSidecarException(
+                SidecarFailureReason.ErrorResponseReturned,
+                "pyannote: CUDA OOM"));
+        var mergeService = new ThrowingSpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        var result = await service.EnrichAsync(
+            wavPath: "/tmp/audio.wav",
+            segments: EmptySegments,
+            metadata: Metadata,
+            options: EnabledOptions(),
+            progress: null,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Null(result.Document);
+        Assert.Single(result.Warnings);
+        Assert.Equal("speaker-labeling: error-response-returned: pyannote: CUDA OOM", result.Warnings[0]);
+    }
+
+    [Fact]
+    public async Task EnrichAsync_Enabled_SidecarCrashes_ReturnsWarning()
+    {
+        var runtime = new FakePythonRuntime();
+        var sidecar = new FakeDiarizationSidecar((_, _, _) =>
+            throw new DiarizationSidecarException(
+                SidecarFailureReason.ProcessCrashed,
+                "exit code -6"));
+        var mergeService = new ThrowingSpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        var result = await service.EnrichAsync(
+            wavPath: "/tmp/audio.wav",
+            segments: EmptySegments,
+            metadata: Metadata,
+            options: EnabledOptions(),
+            progress: null,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Null(result.Document);
+        Assert.Single(result.Warnings);
+        Assert.Equal("speaker-labeling: process-crashed: exit code -6", result.Warnings[0]);
+    }
+
     private sealed class RecordingBootstrapper : IManagedVenvBootstrapper
     {
         public int CallCount { get; private set; }

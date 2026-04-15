@@ -65,11 +65,36 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
                 RuntimeBootstrapped: runtimeBootstrapped);
         }
 
-        var diarization = await _sidecar
-            .DiarizeAsync(new DiarizationRequest(wavPath), progress: null, cancellationToken)
-            .ConfigureAwait(false);
+        DiarizationResult diarization;
+        try
+        {
+            diarization = await _sidecar
+                .DiarizeAsync(new DiarizationRequest(wavPath), progress: null, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (DiarizationSidecarException ex)
+        {
+            return new SpeakerEnrichmentResult(
+                Document: null,
+                Warnings: new[] { FormatSidecarWarning(ex.Reason, ex.Message) },
+                RuntimeBootstrapped: runtimeBootstrapped);
+        }
 
         var document = _mergeService.Merge(segments, diarization, metadata);
         return new SpeakerEnrichmentResult(document, Array.Empty<string>(), runtimeBootstrapped);
     }
+
+    private static string FormatSidecarWarning(SidecarFailureReason reason, string message)
+        => $"speaker-labeling: {ReasonToKebab(reason)}: {message}";
+
+    private static string ReasonToKebab(SidecarFailureReason reason) => reason switch
+    {
+        SidecarFailureReason.RuntimeNotReady => "runtime-not-ready",
+        SidecarFailureReason.ProcessCrashed => "process-crashed",
+        SidecarFailureReason.Timeout => "timeout",
+        SidecarFailureReason.MalformedJson => "malformed-json",
+        SidecarFailureReason.SchemaViolation => "schema-violation",
+        SidecarFailureReason.ErrorResponseReturned => "error-response-returned",
+        _ => "unknown"
+    };
 }
