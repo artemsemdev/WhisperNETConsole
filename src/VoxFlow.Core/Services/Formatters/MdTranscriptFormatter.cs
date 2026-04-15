@@ -36,11 +36,23 @@ internal sealed class MdTranscriptFormatter : ITranscriptFormatter
         builder.AppendLine("---");
         builder.AppendLine();
 
-        foreach (var segment in segments)
+        if (context.SpeakerTranscript is not null)
         {
-            var timestamp = FormatTimestamp(segment.Start);
-            builder.AppendLine(string.Create(CultureInfo.InvariantCulture, $"**[{timestamp}]** {segment.Text.Trim()}"));
-            builder.AppendLine();
+            foreach (var turn in context.SpeakerTranscript.Turns)
+            {
+                var text = string.Join(" ", turn.Words.Select(w => w.Text));
+                builder.AppendLine(string.Create(CultureInfo.InvariantCulture, $"**Speaker {turn.SpeakerId}:** {text}"));
+                builder.AppendLine();
+            }
+        }
+        else
+        {
+            foreach (var segment in segments)
+            {
+                var timestamp = FormatTimestamp(segment.Start);
+                builder.AppendLine(string.Create(CultureInfo.InvariantCulture, $"**[{timestamp}]** {segment.Text.Trim()}"));
+                builder.AppendLine();
+            }
         }
 
         return builder.ToString();

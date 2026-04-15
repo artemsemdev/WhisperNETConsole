@@ -264,6 +264,31 @@ public sealed class TranscriptFormatterTests
         Assert.DoesNotContain("{", output);
     }
 
+    [Fact]
+    public void MdFormatter_WithTwoSpeakerDocument_RendersSpeakerPrefixes()
+    {
+        var formatter = new MdTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildTwoSpeakerDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("**Speaker A:** Hello there", output);
+        Assert.Contains("**Speaker B:** General Kenobi", output);
+    }
+
+    [Fact]
+    public void MdFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new MdTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.DoesNotContain("**Speaker", withoutSpeakers);
+    }
+
     // -----------------------------------------------------------------------
     // TranscriptFormatterFactory
     // -----------------------------------------------------------------------
