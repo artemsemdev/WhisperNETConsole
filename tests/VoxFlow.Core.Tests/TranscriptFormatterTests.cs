@@ -119,6 +119,33 @@ public sealed class TranscriptFormatterTests
         Assert.Equal(string.Empty, output);
     }
 
+    [Fact]
+    public void SrtFormatter_WithTwoSpeakerDocument_RendersSpeakerPrefixes()
+    {
+        var formatter = new SrtTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildSampleAlignedDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("00:00:01,200 --> 00:00:03,800", output);
+        Assert.Contains("Speaker A: Hello, this is a test.", output);
+        Assert.Contains("00:00:05,000 --> 00:00:08,500", output);
+        Assert.Contains("Speaker B: Second line here.", output);
+    }
+
+    [Fact]
+    public void SrtFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new SrtTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.DoesNotContain("Speaker", withoutSpeakers);
+    }
+
     // -----------------------------------------------------------------------
     // VTT formatter
     // -----------------------------------------------------------------------
@@ -334,6 +361,28 @@ public sealed class TranscriptFormatterTests
     // -----------------------------------------------------------------------
     // TranscriptFormatterFactory
     // -----------------------------------------------------------------------
+
+    private static TranscriptDocument BuildSampleAlignedDocument()
+    {
+        // Two turns whose intervals align with SampleSegments, so SRT/VTT
+        // segment→speaker overlap mapping is unambiguous.
+        var words = new[]
+        {
+            new TranscriptWord(TimeSpan.FromMilliseconds(1200), TimeSpan.FromMilliseconds(3800), "first", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(8500), "second", "B")
+        };
+        var turns = SpeakerTurn.GroupConsecutive(words);
+        var speakers = new[]
+        {
+            new SpeakerInfo("A", "A", TimeSpan.FromMilliseconds(2600)),
+            new SpeakerInfo("B", "B", TimeSpan.FromMilliseconds(3500))
+        };
+        return new TranscriptDocument(
+            speakers,
+            words,
+            turns,
+            new TranscriptMetadata(1, "pyannote/test", 1));
+    }
 
     private static TranscriptDocument BuildTwoSpeakerDocument()
     {
