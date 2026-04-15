@@ -29,6 +29,186 @@ public sealed class TranscriptionServiceTests
         Assert.Empty(result.EnrichmentWarnings);
     }
 
+    [Fact]
+    public async Task TranscribeFileAsync_EnabledViaConfig_CallsEnrichment_AndPropagatesDocument()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+
+        var document = BuildDocument();
+        var enrichment = new RecordingEnrichmentService
+        {
+            NextResult = new SpeakerEnrichmentResult(document, Array.Empty<string>(), RuntimeBootstrapped: false)
+        };
+        var service = BuildService(settingsPath, enrichment);
+
+        var result = await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt")));
+
+        Assert.Equal(1, enrichment.CallCount);
+        Assert.Same(document, result.SpeakerTranscript);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_EnabledViaConfig_RequestOverrideFalse_DoesNotCallEnrichment()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+
+        var enrichment = new RecordingEnrichmentService();
+        var service = BuildService(settingsPath, enrichment);
+
+        var result = await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt"),
+            EnableSpeakers: false));
+
+        Assert.Equal(0, enrichment.CallCount);
+        Assert.Null(result.SpeakerTranscript);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_DisabledConfig_RequestOverrideTrue_CallsEnrichment()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: false);
+
+        var enrichment = new RecordingEnrichmentService();
+        var service = BuildService(settingsPath, enrichment);
+
+        var result = await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt"),
+            EnableSpeakers: true));
+
+        Assert.Equal(1, enrichment.CallCount);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_EnrichmentReturnsWarnings_AreAppendedToResultWarnings()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+
+        var enrichment = new RecordingEnrichmentService
+        {
+            NextResult = new SpeakerEnrichmentResult(
+                Document: null,
+                Warnings: new[] { "speaker-labeling: a", "speaker-labeling: b" },
+                RuntimeBootstrapped: false)
+        };
+        var service = BuildService(settingsPath, enrichment);
+
+        var result = await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt")));
+
+        Assert.Equal(new[] { "speaker-labeling: a", "speaker-labeling: b" }, result.EnrichmentWarnings);
+        Assert.Contains("speaker-labeling: a", result.Warnings);
+        Assert.Contains("speaker-labeling: b", result.Warnings);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_EnrichmentThrows_IsWrappedAsWarning_AndPipelineStillSucceeds()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+
+        var enrichment = new ThrowingEnrichmentService("kaboom");
+        var service = BuildService(settingsPath, enrichment);
+
+        var result = await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt")));
+
+        Assert.True(result.Success);
+        Assert.Null(result.SpeakerTranscript);
+        Assert.Single(result.EnrichmentWarnings);
+        Assert.StartsWith("speaker-labeling: internal error:", result.EnrichmentWarnings[0]);
+        Assert.Contains("kaboom", result.EnrichmentWarnings[0]);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_ReportsProgressStageDiarizing_BetweenTranscribingAndWriting()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+
+        var enrichment = new ProgressReportingEnrichmentService(percent: 90.0);
+        var service = BuildService(settingsPath, enrichment);
+
+        var updates = new List<ProgressUpdate>();
+        var progress = new Progress<ProgressUpdate>(u => updates.Add(u));
+
+        await service.TranscribeFileAsync(
+            new TranscribeFileRequest(
+                InputPath: "/fake/input.m4a",
+                ResultFilePath: Path.Combine(directory.Path, "result.txt")),
+            progress);
+
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (!updates.Any(u => u.Stage == ProgressStage.Diarizing) && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        var stages = updates.Select(u => u.Stage).ToList();
+        var transcribingIdx = stages.FindIndex(s => s == ProgressStage.Transcribing);
+        var diarizingIdx = stages.FindIndex(s => s == ProgressStage.Diarizing);
+        var writingIdx = stages.FindIndex(s => s == ProgressStage.Writing);
+
+        Assert.True(transcribingIdx >= 0, "expected Transcribing update");
+        Assert.True(diarizingIdx >= 0, "expected Diarizing update");
+        Assert.True(writingIdx >= 0, "expected Writing update");
+        Assert.True(transcribingIdx < diarizingIdx, "Transcribing must precede Diarizing");
+        Assert.True(diarizingIdx < writingIdx, "Diarizing must precede Writing");
+    }
+
+    private static TranscriptDocument BuildDocument()
+        => new(
+            Speakers: new[] { new SpeakerInfo("A", "A", TimeSpan.FromSeconds(1)) },
+            Words: Array.Empty<TranscriptWord>(),
+            Turns: Array.Empty<SpeakerTurn>(),
+            Metadata: new TranscriptMetadata(1, "pyannote/test", 1));
+
+    private sealed class ThrowingEnrichmentService : ISpeakerEnrichmentService
+    {
+        private readonly string _message;
+        public ThrowingEnrichmentService(string message) { _message = message; }
+
+        public Task<SpeakerEnrichmentResult> EnrichAsync(
+            string wavPath,
+            IReadOnlyList<FilteredSegment> segments,
+            TranscriptMetadata metadata,
+            SpeakerLabelingOptions options,
+            IProgress<ProgressUpdate>? progress,
+            CancellationToken cancellationToken)
+            => throw new InvalidOperationException(_message);
+    }
+
+    private sealed class ProgressReportingEnrichmentService : ISpeakerEnrichmentService
+    {
+        private readonly double _percent;
+        public ProgressReportingEnrichmentService(double percent) { _percent = percent; }
+
+        public Task<SpeakerEnrichmentResult> EnrichAsync(
+            string wavPath,
+            IReadOnlyList<FilteredSegment> segments,
+            TranscriptMetadata metadata,
+            SpeakerLabelingOptions options,
+            IProgress<ProgressUpdate>? progress,
+            CancellationToken cancellationToken)
+        {
+            progress?.Report(new ProgressUpdate(
+                ProgressStage.Diarizing,
+                _percent,
+                TimeSpan.FromMilliseconds(1),
+                Message: "diarizing"));
+            return Task.FromResult(SpeakerEnrichmentResult.Empty);
+        }
+    }
+
     private static TranscriptionService BuildService(
         string settingsPath,
         ISpeakerEnrichmentService enrichment)
