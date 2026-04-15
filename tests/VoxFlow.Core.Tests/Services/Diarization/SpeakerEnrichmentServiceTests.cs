@@ -141,6 +141,35 @@ public sealed class SpeakerEnrichmentServiceTests
         Assert.Equal(1, sidecar.CallCount);
     }
 
+    [Fact]
+    public async Task EnrichAsync_Enabled_RuntimeNotReady_NonBootstrapable_ReturnsWarning()
+    {
+        var runtime = new FakePythonRuntime
+        {
+            NextStatus = PythonRuntimeStatus.NotReady("python3 not found on PATH")
+        };
+        var sidecar = FakeDiarizationSidecar.ThrowsIfCalled();
+        var mergeService = new ThrowingSpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        var result = await service.EnrichAsync(
+            wavPath: "/tmp/audio.wav",
+            segments: EmptySegments,
+            metadata: Metadata,
+            options: EnabledOptions(),
+            progress: null,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Null(result.Document);
+        Assert.False(result.RuntimeBootstrapped);
+        Assert.Single(result.Warnings);
+        Assert.StartsWith("speaker-labeling: runtime not ready:", result.Warnings[0]);
+        Assert.Contains("python3 not found on PATH", result.Warnings[0]);
+        Assert.Equal(0, sidecar.CallCount);
+    }
+
     private sealed class RecordingBootstrapper : IManagedVenvBootstrapper
     {
         public int CallCount { get; private set; }

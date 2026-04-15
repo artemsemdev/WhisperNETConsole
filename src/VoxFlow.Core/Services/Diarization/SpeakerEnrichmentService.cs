@@ -58,7 +58,11 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
 
         if (!status.IsReady)
         {
-            throw new NotImplementedException("non-bootstrapable not-ready path lands in a later TDD step");
+            var warning = $"speaker-labeling: runtime not ready: {status.Error}";
+            return new SpeakerEnrichmentResult(
+                Document: null,
+                Warnings: new[] { warning },
+                RuntimeBootstrapped: runtimeBootstrapped);
         }
 
         var diarization = await _sidecar
