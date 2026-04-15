@@ -148,7 +148,8 @@ internal sealed class TranscriptionService : ITranscriptionService
             DetectedLanguage: detectedLanguage,
             AcceptedSegmentCount: selectionResult.AcceptedSegments.Count,
             SkippedSegmentCount: selectionResult.SkippedSegments.Count,
-            Warnings: warnings);
+            Warnings: warnings,
+            SpeakerTranscript: speakerTranscript);
 
         await _outputWriter.WriteAsync(resultPath, selectionResult.AcceptedSegments, outputContext, cancellationToken);
 

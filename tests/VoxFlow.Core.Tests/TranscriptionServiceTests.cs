@@ -130,6 +130,61 @@ public sealed class TranscriptionServiceTests
     }
 
     [Fact]
+    public async Task TranscribeFileAsync_EnabledWithDocument_PassesSpeakerTranscriptToOutputWriter()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: true);
+
+        var document = BuildDocument();
+        var enrichment = new RecordingEnrichmentService
+        {
+            NextResult = new SpeakerEnrichmentResult(document, Array.Empty<string>(), RuntimeBootstrapped: false)
+        };
+        var writer = new RecordingOutputWriter();
+        var service = new TranscriptionService(
+            new StubConfigurationService(settingsPath),
+            new PassingValidationService(),
+            new SuccessfulAudioConversionService(),
+            new NoOpModelService(),
+            new SuccessfulWavAudioLoader(),
+            new SingleSegmentLanguageSelectionService(),
+            writer,
+            enrichment);
+
+        await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt")));
+
+        Assert.NotNull(writer.LastContext);
+        Assert.Same(document, writer.LastContext!.SpeakerTranscript);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_DisabledPath_PassesNullSpeakerTranscriptToOutputWriter()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = WriteSettings(directory, speakerLabelingEnabled: false);
+
+        var writer = new RecordingOutputWriter();
+        var service = new TranscriptionService(
+            new StubConfigurationService(settingsPath),
+            new PassingValidationService(),
+            new SuccessfulAudioConversionService(),
+            new NoOpModelService(),
+            new SuccessfulWavAudioLoader(),
+            new SingleSegmentLanguageSelectionService(),
+            writer,
+            new RecordingEnrichmentService());
+
+        await service.TranscribeFileAsync(new TranscribeFileRequest(
+            InputPath: "/fake/input.m4a",
+            ResultFilePath: Path.Combine(directory.Path, "result.txt")));
+
+        Assert.NotNull(writer.LastContext);
+        Assert.Null(writer.LastContext!.SpeakerTranscript);
+    }
+
+    [Fact]
     public async Task TranscribeFileAsync_ReportsProgressStageDiarizing_BetweenTranscribingAndWriting()
     {
         using var directory = new TemporaryDirectory();
@@ -336,6 +391,25 @@ public sealed class TranscriptionServiceTests
                 AudioDuration: TimeSpan.FromSeconds(1),
                 AcceptedSegments: new[] { new FilteredSegment(TimeSpan.Zero, TimeSpan.FromSeconds(1), "hello", 0.9) },
                 SkippedSegments: Array.Empty<SkippedSegment>()));
+    }
+
+    private sealed class RecordingOutputWriter : IOutputWriter
+    {
+        public TranscriptOutputContext? LastContext { get; private set; }
+
+        public Task WriteAsync(
+            string outputPath,
+            IReadOnlyList<FilteredSegment> segments,
+            TranscriptOutputContext context,
+            CancellationToken cancellationToken = default)
+        {
+            LastContext = context;
+            File.WriteAllText(outputPath, "recorded");
+            return Task.CompletedTask;
+        }
+
+        public string BuildOutputText(IReadOnlyList<FilteredSegment> segments, TranscriptOutputContext context)
+            => string.Empty;
     }
 
     private sealed class NoOpOutputWriter : IOutputWriter
