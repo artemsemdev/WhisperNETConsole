@@ -47,6 +47,7 @@ public sealed class TranscriptionOptions
     public ConsoleProgressOptions ConsoleProgress { get; }
     public ResultFormat ResultFormat { get; }
     public BatchOptions Batch { get; }
+    public SpeakerLabelingOptions SpeakerLabeling { get; }
 
     /// <summary>
     /// Creates validated options from raw configuration data.
@@ -105,6 +106,7 @@ public sealed class TranscriptionOptions
         StartupValidation = CreateStartupValidationOptions(configuration.StartupValidation);
         ConsoleProgress = CreateConsoleProgressOptions(configuration.ConsoleProgress);
         Batch = IsBatchMode ? CreateBatchOptions(configuration.Batch) : BatchOptions.Disabled;
+        SpeakerLabeling = CreateSpeakerLabelingOptions(configuration.SpeakerLabeling);
     }
 
     /// <summary>
@@ -295,6 +297,53 @@ public sealed class TranscriptionOptions
     }
 
     /// <summary>
+    /// Maps the raw speaker-labeling JSON section onto the validated options record,
+    /// falling back to <see cref="SpeakerLabelingOptions.Disabled"/> when the section is absent.
+    /// </summary>
+    private static SpeakerLabelingOptions CreateSpeakerLabelingOptions(SpeakerLabelingConfiguration? configuration)
+    {
+        if (configuration is null)
+        {
+            return SpeakerLabelingOptions.Disabled;
+        }
+
+        var runtimeMode = ParsePythonRuntimeMode(configuration.PythonRuntimeMode);
+        var modelId = string.IsNullOrWhiteSpace(configuration.ModelId)
+            ? SpeakerLabelingOptions.Disabled.ModelId
+            : configuration.ModelId;
+        var timeoutSeconds = configuration.TimeoutSeconds <= 0
+            ? SpeakerLabelingOptions.Disabled.TimeoutSeconds
+            : configuration.TimeoutSeconds;
+
+        return new SpeakerLabelingOptions(
+            Enabled: configuration.Enabled,
+            TimeoutSeconds: timeoutSeconds,
+            RuntimeMode: runtimeMode,
+            ModelId: modelId);
+    }
+
+    /// <summary>
+    /// Maps the raw JSON string onto <see cref="PythonRuntimeMode"/> case-insensitively and
+    /// throws a descriptive error that lists every legal value when the input is unrecognized.
+    /// </summary>
+    private static PythonRuntimeMode ParsePythonRuntimeMode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return SpeakerLabelingOptions.Disabled.RuntimeMode;
+        }
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "systempython" => PythonRuntimeMode.SystemPython,
+            "managedvenv" => PythonRuntimeMode.ManagedVenv,
+            "standalone" => PythonRuntimeMode.Standalone,
+            _ => throw new InvalidOperationException(
+                $"Settings value 'transcription.speakerLabeling.pythonRuntimeMode' must be one of: SystemPython, ManagedVenv, Standalone. Got '{value}'.")
+        };
+    }
+
+    /// <summary>
     /// Ensures a required string setting is present.
     /// </summary>
     private static string RequireValue(string? value, string settingName)
@@ -406,6 +455,18 @@ public sealed class TranscriptionConfiguration
     public StartupValidationConfiguration? StartupValidation { get; set; }
     public ConsoleProgressConfiguration? ConsoleProgress { get; set; }
     public BatchConfiguration? Batch { get; set; }
+    public SpeakerLabelingConfiguration? SpeakerLabeling { get; set; }
+}
+
+/// <summary>
+/// Represents raw speaker-labeling settings loaded from JSON inside the transcription section.
+/// </summary>
+public sealed class SpeakerLabelingConfiguration
+{
+    public bool Enabled { get; set; }
+    public int TimeoutSeconds { get; set; }
+    public string? PythonRuntimeMode { get; set; }
+    public string? ModelId { get; set; }
 }
 
 /// <summary>
