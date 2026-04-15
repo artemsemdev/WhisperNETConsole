@@ -48,6 +48,36 @@ public sealed class TranscriptFormatterTests
         Assert.Equal(string.Empty, output);
     }
 
+    [Fact]
+    public void TxtFormatter_WithTwoSpeakerDocument_RendersSpeakerPrefixes()
+    {
+        var formatter = new TxtTranscriptFormatter();
+        var document = BuildTwoSpeakerDocument();
+        var context = DefaultContext with { SpeakerTranscript = document };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.Equal("Speaker A: Hello there", lines[0]);
+        Assert.Equal("Speaker B: General Kenobi", lines[1]);
+    }
+
+    [Fact]
+    public void TxtFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new TxtTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.Contains("->", withoutSpeakers);
+        Assert.Contains(": Hello, this is a test.", withoutSpeakers);
+        Assert.DoesNotContain("Speaker", withoutSpeakers);
+    }
+
     // -----------------------------------------------------------------------
     // SRT formatter
     // -----------------------------------------------------------------------
@@ -237,6 +267,28 @@ public sealed class TranscriptFormatterTests
     // -----------------------------------------------------------------------
     // TranscriptFormatterFactory
     // -----------------------------------------------------------------------
+
+    private static TranscriptDocument BuildTwoSpeakerDocument()
+    {
+        var words = new[]
+        {
+            new TranscriptWord(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1), "Hello", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), "there", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3), "General", "B"),
+            new TranscriptWord(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(4), "Kenobi", "B")
+        };
+        var turns = SpeakerTurn.GroupConsecutive(words);
+        var speakers = new[]
+        {
+            new SpeakerInfo("A", "A", TimeSpan.FromSeconds(2)),
+            new SpeakerInfo("B", "B", TimeSpan.FromSeconds(2))
+        };
+        return new TranscriptDocument(
+            speakers,
+            words,
+            turns,
+            new TranscriptMetadata(1, "pyannote/test", 1));
+    }
 
     [Theory]
     [InlineData(ResultFormat.Txt)]

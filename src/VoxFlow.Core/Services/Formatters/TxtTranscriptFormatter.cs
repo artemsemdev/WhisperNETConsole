@@ -12,6 +12,11 @@ internal sealed class TxtTranscriptFormatter : ITranscriptFormatter
 {
     public string Format(IReadOnlyList<FilteredSegment> segments, TranscriptOutputContext context)
     {
+        if (context.SpeakerTranscript is not null)
+        {
+            return FormatSpeakerAware(context.SpeakerTranscript);
+        }
+
         var builder = new StringBuilder();
 
         foreach (var segment in segments)
@@ -23,6 +28,19 @@ internal sealed class TxtTranscriptFormatter : ITranscriptFormatter
             builder.AppendLine(segment.Text);
         }
 
+        return builder.ToString();
+    }
+
+    private static string FormatSpeakerAware(TranscriptDocument document)
+    {
+        var builder = new StringBuilder();
+        foreach (var turn in document.Turns)
+        {
+            builder.Append("Speaker ");
+            builder.Append(turn.SpeakerId);
+            builder.Append(": ");
+            builder.AppendLine(string.Join(" ", turn.Words.Select(w => w.Text)));
+        }
         return builder.ToString();
     }
 }
