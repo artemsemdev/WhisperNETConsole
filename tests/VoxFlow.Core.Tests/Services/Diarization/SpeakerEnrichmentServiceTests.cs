@@ -277,6 +277,65 @@ public sealed class SpeakerEnrichmentServiceTests
         });
     }
 
+    [Fact]
+    public async Task EnrichAsync_Enabled_RuntimeReady_ForwardsProgressAsDiarizingStage()
+    {
+        var runtime = new FakePythonRuntime();
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: new[] { new DiarizationSpeaker("A", 1.0) },
+            Segments: new[] { new DiarizationSegment("A", 0.0, 1.0) });
+        var sidecar = new FakeDiarizationSidecar((_, progress, _) =>
+        {
+            progress?.Report(new SpeakerLabelingProgress("loading", 0.25));
+            progress?.Report(new SpeakerLabelingProgress("diarizing", 0.75));
+            return Task.FromResult(diarization);
+        });
+        var mergeService = new SpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        var updates = new List<ProgressUpdate>();
+        var progress = new Progress<ProgressUpdate>(updates.Add);
+
+        var segments = new[]
+        {
+            new FilteredSegment(
+                TimeSpan.Zero,
+                TimeSpan.FromSeconds(1),
+                "hi",
+                Probability: 0.9,
+                Words: new[] { new WhisperToken { Start = 0, End = 100, Text = "hi" } })
+        };
+
+        var result = await service.EnrichAsync(
+            wavPath: "/tmp/audio.wav",
+            segments: segments,
+            metadata: Metadata,
+            options: EnabledOptions(),
+            progress: progress,
+            cancellationToken: CancellationToken.None);
+
+        Assert.NotNull(result.Document);
+
+        // IProgress<T> uses SynchronizationContext — give it a moment to drain.
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (updates.Count < 2 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        var diarizingUpdates = updates.FindAll(u => u.Stage == ProgressStage.Diarizing);
+        Assert.Equal(2, diarizingUpdates.Count);
+        Assert.All(diarizingUpdates, u =>
+        {
+            Assert.InRange(u.PercentComplete, 85.0, 95.0);
+        });
+        // Linear mapping 0..1 → 85..95 should place 0.25 and 0.75 strictly inside the band.
+        Assert.True(diarizingUpdates[0].PercentComplete < diarizingUpdates[1].PercentComplete);
+    }
+
     private sealed class RecordingBootstrapper : IManagedVenvBootstrapper
     {
         public int CallCount { get; private set; }

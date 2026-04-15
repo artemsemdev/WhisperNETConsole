@@ -22,6 +22,7 @@ public enum ProgressStage
     LoadingModel,
     Transcribing,
     Filtering,
+    Diarizing,
     Writing,
     Complete,
     Failed

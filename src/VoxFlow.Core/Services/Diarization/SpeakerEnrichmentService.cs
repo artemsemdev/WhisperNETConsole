@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
@@ -67,12 +68,27 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
 
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+        var stopwatch = Stopwatch.StartNew();
+        var sidecarProgress = progress is null
+            ? null
+            : new Progress<SpeakerLabelingProgress>(update =>
+            {
+                var fraction = update.Fraction ?? 0.0;
+                if (fraction < 0.0) fraction = 0.0;
+                else if (fraction > 1.0) fraction = 1.0;
+                var percent = 85.0 + (fraction * 10.0); // map [0,1] into [85,95]
+                progress.Report(new ProgressUpdate(
+                    Stage: ProgressStage.Diarizing,
+                    PercentComplete: percent,
+                    Elapsed: stopwatch.Elapsed,
+                    Message: update.Stage));
+            });
 
         DiarizationResult diarization;
         try
         {
             diarization = await _sidecar
-                .DiarizeAsync(new DiarizationRequest(wavPath), progress: null, linkedCts.Token)
+                .DiarizeAsync(new DiarizationRequest(wavPath), sidecarProgress, linkedCts.Token)
                 .ConfigureAwait(false);
         }
         catch (DiarizationSidecarException ex)
