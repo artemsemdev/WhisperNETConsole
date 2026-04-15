@@ -69,9 +69,12 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
         var stopwatch = Stopwatch.StartNew();
+        // Synchronous IProgress<T> adapter: Progress<T> would queue to
+        // SynchronizationContext/ThreadPool and lose FIFO ordering between
+        // reports, which matters for downstream progress bar rendering.
         var sidecarProgress = progress is null
             ? null
-            : new Progress<SpeakerLabelingProgress>(update =>
+            : new DelegateProgress<SpeakerLabelingProgress>(update =>
             {
                 var fraction = update.Fraction ?? 0.0;
                 if (fraction < 0.0) fraction = 0.0;
@@ -126,4 +129,11 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
         SidecarFailureReason.ErrorResponseReturned => "error-response-returned",
         _ => "unknown"
     };
+
+    private sealed class DelegateProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _handler;
+        public DelegateProgress(Action<T> handler) => _handler = handler;
+        public void Report(T value) => _handler(value);
+    }
 }

@@ -297,7 +297,11 @@ public sealed class SpeakerEnrichmentServiceTests
         var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
 
         var updates = new List<ProgressUpdate>();
-        var progress = new Progress<ProgressUpdate>(updates.Add);
+        // Synchronous IProgress<T> — Progress<T> queues to SynchronizationContext/ThreadPool
+        // and does not guarantee FIFO ordering between reports, which makes the ordering
+        // assertion below flaky. Capturing synchronously on the reporting thread is
+        // deterministic and still exercises the same production code path.
+        var progress = new SynchronousProgress<ProgressUpdate>(updates.Add);
 
         var segments = new[]
         {
@@ -319,13 +323,6 @@ public sealed class SpeakerEnrichmentServiceTests
 
         Assert.NotNull(result.Document);
 
-        // IProgress<T> uses SynchronizationContext — give it a moment to drain.
-        var deadline = DateTime.UtcNow.AddSeconds(2);
-        while (updates.Count < 2 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
-
         var diarizingUpdates = updates.FindAll(u => u.Stage == ProgressStage.Diarizing);
         Assert.Equal(2, diarizingUpdates.Count);
         Assert.All(diarizingUpdates, u =>
@@ -334,6 +331,13 @@ public sealed class SpeakerEnrichmentServiceTests
         });
         // Linear mapping 0..1 → 85..95 should place 0.25 and 0.75 strictly inside the band.
         Assert.True(diarizingUpdates[0].PercentComplete < diarizingUpdates[1].PercentComplete);
+    }
+
+    private sealed class SynchronousProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _handler;
+        public SynchronousProgress(Action<T> handler) => _handler = handler;
+        public void Report(T value) => _handler(value);
     }
 
     [Fact]
