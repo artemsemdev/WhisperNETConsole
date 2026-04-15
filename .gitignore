@@ -36,6 +36,10 @@ models/*
 result.txt
 artifacts/*
 !artifacts/.gitkeep
+# Test fixtures for the diarization sidecar are deliberately committed
+# (see tests/fixtures/sidecar/SIZE-BUDGET.md for the per-file and
+# aggregate size caps that keep these from bloating the repo).
+!tests/fixtures/sidecar/audio/*.wav
 
 # Coverage and test artifacts
 coverage/
