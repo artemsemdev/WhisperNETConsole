@@ -207,6 +207,48 @@ public sealed class TranscriptFormatterTests
     }
 
     [Fact]
+    public void JsonFormatter_WithTwoSpeakerDocument_IncludesSpeakerTranscript()
+    {
+        var formatter = new JsonTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildTwoSpeakerDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        using var doc = JsonDocument.Parse(output);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("speakerTranscript", out var speakerTranscript),
+            "expected top-level speakerTranscript property");
+
+        var speakers = speakerTranscript.GetProperty("speakers");
+        Assert.Equal(2, speakers.GetArrayLength());
+        Assert.Equal("A", speakers[0].GetProperty("id").GetString());
+        Assert.Equal("B", speakers[1].GetProperty("id").GetString());
+
+        var turns = speakerTranscript.GetProperty("turns");
+        Assert.Equal(2, turns.GetArrayLength());
+        Assert.Equal("A", turns[0].GetProperty("speakerId").GetString());
+        Assert.Equal("B", turns[1].GetProperty("speakerId").GetString());
+
+        // Existing segment-based shape must still be present.
+        Assert.Equal(2, root.GetProperty("segments").GetArrayLength());
+    }
+
+    [Fact]
+    public void JsonFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new JsonTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        using var doc = JsonDocument.Parse(withoutSpeakers);
+        Assert.False(doc.RootElement.TryGetProperty("speakerTranscript", out _));
+    }
+
+    [Fact]
     public void JsonFormatter_IncludesPlainTranscript()
     {
         var formatter = new JsonTranscriptFormatter();
