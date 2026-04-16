@@ -15,3 +15,7 @@ torchaudio>=2.2,<3
 # breaks at pipeline-load time with "got an unexpected keyword argument
 # 'use_auth_token'". Pin the hub below 0.32 until pyannote releases a fix.
 huggingface_hub>=0.23,<0.32
+# pyannote.audio 3.3.2 imports matplotlib inside pipeline-load but does not
+# declare it as a hard dependency, so pip leaves it out of a fresh venv and
+# pipeline load fails with "No module named 'matplotlib'". Pin explicitly.
+matplotlib>=3.7
