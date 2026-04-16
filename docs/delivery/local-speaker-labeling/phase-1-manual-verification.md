@@ -12,9 +12,10 @@ This guide is written so that you can run everything yourself, on your own machi
    python3 --version
    ```
 2. **ffmpeg** on PATH (same as before).
-3. **Hugging Face account + accepted pyannote license.** pyannote's community model is gated. You must:
+3. **Hugging Face account + accepted pyannote licenses.** pyannote's pipeline is gated, and so is each of its transitive component models. You must accept **both** licenses — `Pipeline.from_pretrained` silently returns `None` if either is missing, and the sidecar will refuse to run with an actionable error. You must:
    - Create an account at https://huggingface.co/
    - Visit https://huggingface.co/pyannote/speaker-diarization-3.1 and click **Agree and access repository**
+   - Visit https://huggingface.co/pyannote/segmentation-3.0 and click **Agree and access repository** (required — this is a dependency of the 3.1 pipeline and is gated separately)
    - Create a read token at https://huggingface.co/settings/tokens
    - Export it in the shell you'll run the CLI from, **before** launching:
      ```bash

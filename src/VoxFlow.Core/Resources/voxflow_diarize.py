@@ -96,10 +96,31 @@ def _run_diarization(wav_path: str) -> dict[str, Any]:
     except Exception as exc:  # pragma: no cover - exercised in integration tests
         return _error_envelope(f"failed to import pyannote.audio: {exc}")
 
+    # Pipeline.from_pretrained silently returns None when the HF token is
+    # missing OR when the user has not accepted the license for *any* of the
+    # pipeline's transitive dependencies. speaker-diarization-3.1 depends on
+    # pyannote/segmentation-3.0, which is separately gated and must be
+    # accepted on huggingface.co independently from the top-level pipeline.
+    # We intercept the None case so the .NET client surfaces a useful
+    # diagnostic instead of the downstream "'NoneType' is not callable" crash.
+    hf_token = (
+        os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        or os.environ.get("HF_TOKEN")
+    )
     try:
-        pipeline = Pipeline.from_pretrained(PYANNOTE_MODEL)
+        pipeline = Pipeline.from_pretrained(PYANNOTE_MODEL, use_auth_token=hf_token)
     except Exception as exc:  # pragma: no cover - exercised in integration tests
         return _error_envelope(f"failed to load pyannote pipeline '{PYANNOTE_MODEL}': {exc}")
+
+    if pipeline is None:
+        return _error_envelope(
+            f"Pipeline.from_pretrained('{PYANNOTE_MODEL}') returned None. "
+            "This usually means HUGGING_FACE_HUB_TOKEN is missing or invalid, or you "
+            "have not accepted the license on one of the pipeline's component models. "
+            "Ensure the token is set and that you have clicked 'Agree and access "
+            "repository' on BOTH https://huggingface.co/pyannote/speaker-diarization-3.1 "
+            "AND https://huggingface.co/pyannote/segmentation-3.0."
+        )
 
     try:
         diarization = pipeline(wav_path)
