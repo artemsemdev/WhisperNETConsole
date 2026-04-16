@@ -90,6 +90,61 @@ def _normalize_speaker_labels(diarization: Any) -> tuple[list[dict[str, Any]], l
     return speakers, segments
 
 
+def _diagnose_none_pipeline(hf_token: str | None) -> str:
+    """Build a short diagnostic string describing *why* from_pretrained probably
+    returned None. Reports what the child process actually sees (token
+    presence/shape, HF cache location, whether the top-level model and its
+    segmentation dependency have been downloaded) so a single error envelope
+    tells the user exactly which of token-missing / token-invalid /
+    license-not-accepted they are hitting.
+    """
+    parts: list[str] = []
+
+    if not hf_token:
+        parts.append(
+            "Diagnostic: HUGGING_FACE_HUB_TOKEN and HF_TOKEN are both unset in "
+            "the sidecar environment -- the token is not reaching the child "
+            "process."
+        )
+    else:
+        # Don't leak the token itself, just enough shape to confirm it arrived.
+        prefix = hf_token[:4] if len(hf_token) >= 4 else "?"
+        parts.append(
+            f"Diagnostic: HF token present (prefix='{prefix}', length={len(hf_token)})."
+        )
+
+    cache_root = (
+        os.environ.get("HF_HUB_CACHE")
+        or os.path.join(os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface")), "hub")
+    )
+    parts.append(f"HF cache root: {cache_root}.")
+
+    def _cache_dir_present(model_id: str) -> bool:
+        folder = "models--" + model_id.replace("/", "--")
+        return os.path.isdir(os.path.join(cache_root, folder))
+
+    top_cached = _cache_dir_present(PYANNOTE_MODEL)
+    seg_cached = _cache_dir_present("pyannote/segmentation-3.0")
+    parts.append(
+        f"Cached top-level model: {top_cached}. "
+        f"Cached pyannote/segmentation-3.0 (required dependency): {seg_cached}."
+    )
+
+    if hf_token and top_cached and not seg_cached:
+        parts.append(
+            "Most likely cause: the segmentation-3.0 license has not been accepted "
+            "on huggingface.co for this account, so its weights silently failed to "
+            "download."
+        )
+    elif hf_token and not top_cached:
+        parts.append(
+            "Most likely cause: the token is invalid or the top-level model license "
+            "has not been accepted (no model files are present in the cache)."
+        )
+
+    return " ".join(parts)
+
+
 def _run_diarization(wav_path: str) -> dict[str, Any]:
     try:
         from pyannote.audio import Pipeline  # type: ignore[import-not-found]
@@ -113,13 +168,13 @@ def _run_diarization(wav_path: str) -> dict[str, Any]:
         return _error_envelope(f"failed to load pyannote pipeline '{PYANNOTE_MODEL}': {exc}")
 
     if pipeline is None:
+        diag = _diagnose_none_pipeline(hf_token)
         return _error_envelope(
-            f"Pipeline.from_pretrained('{PYANNOTE_MODEL}') returned None. "
-            "This usually means HUGGING_FACE_HUB_TOKEN is missing or invalid, or you "
-            "have not accepted the license on one of the pipeline's component models. "
-            "Ensure the token is set and that you have clicked 'Agree and access "
-            "repository' on BOTH https://huggingface.co/pyannote/speaker-diarization-3.1 "
-            "AND https://huggingface.co/pyannote/segmentation-3.0."
+            f"Pipeline.from_pretrained('{PYANNOTE_MODEL}') returned None. {diag} "
+            "Required actions: (a) ensure HUGGING_FACE_HUB_TOKEN is exported in the "
+            "shell that launches VoxFlow; (b) accept the license on BOTH "
+            "https://huggingface.co/pyannote/speaker-diarization-3.1 AND "
+            "https://huggingface.co/pyannote/segmentation-3.0 using the same HF account."
         )
 
     try:
