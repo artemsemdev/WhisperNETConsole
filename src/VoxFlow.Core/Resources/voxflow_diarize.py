@@ -137,12 +137,82 @@ def _diagnose_none_pipeline(hf_token: str | None) -> str:
             "download."
         )
     elif hf_token and not top_cached:
-        parts.append(
-            "Most likely cause: the token is invalid or the top-level model license "
-            "has not been accepted (no model files are present in the cache)."
-        )
+        # Probe the HF API directly to split 'bad token' from 'license not
+        # accepted'. model_info returns 401 for invalid tokens and 403 for a
+        # valid token that has not accepted the repo license.
+        parts.append(_probe_hf_access(hf_token))
 
     return " ".join(parts)
+
+
+def _probe_hf_access(hf_token: str) -> str:
+    try:
+        from huggingface_hub import HfApi  # type: ignore[import-not-found]
+        from huggingface_hub.utils import (  # type: ignore[import-not-found]
+            GatedRepoError,
+            RepositoryNotFoundError,
+        )
+    except Exception as exc:  # pragma: no cover
+        return f"(could not probe HF API: {exc})."
+
+    api = HfApi()
+    # First sanity check -- whoami is the cheapest way to verify the token.
+    try:
+        who = api.whoami(token=hf_token)
+        username = who.get("name") or who.get("fullname") or "<unknown>"
+    except Exception as exc:
+        return (
+            f"HF whoami() failed for this token: {exc}. "
+            "Most likely cause: the token is invalid, revoked, or has no read "
+            "permission. Generate a new read token at "
+            "https://huggingface.co/settings/tokens."
+        )
+
+    # Token is valid; now test access to the top-level pipeline repo.
+    try:
+        api.model_info(PYANNOTE_MODEL, token=hf_token)
+    except GatedRepoError:
+        return (
+            f"HF whoami() succeeded as '{username}', but access to {PYANNOTE_MODEL} "
+            "is gated and this account has not accepted its license. Visit "
+            f"https://huggingface.co/{PYANNOTE_MODEL} and click 'Agree and access "
+            "repository'."
+        )
+    except RepositoryNotFoundError:
+        return (
+            f"HF whoami() succeeded as '{username}', but {PYANNOTE_MODEL} reports "
+            "404 for this token. The repo may have been renamed, or the token may "
+            "be scoped to a different org."
+        )
+    except Exception as exc:
+        return (
+            f"HF whoami() succeeded as '{username}', but model_info({PYANNOTE_MODEL}) "
+            f"failed: {exc}."
+        )
+
+    # Top-level repo is accessible -- re-check segmentation separately.
+    try:
+        api.model_info("pyannote/segmentation-3.0", token=hf_token)
+    except GatedRepoError:
+        return (
+            f"HF whoami() succeeded as '{username}' and {PYANNOTE_MODEL} is "
+            "accessible, but pyannote/segmentation-3.0 is gated and this account "
+            "has not accepted its license. Visit "
+            "https://huggingface.co/pyannote/segmentation-3.0 and click "
+            "'Agree and access repository'."
+        )
+    except Exception as exc:
+        return (
+            f"HF whoami() succeeded as '{username}' and {PYANNOTE_MODEL} is "
+            f"accessible, but model_info(pyannote/segmentation-3.0) failed: {exc}."
+        )
+
+    return (
+        f"HF whoami() succeeded as '{username}' and both {PYANNOTE_MODEL} and "
+        "pyannote/segmentation-3.0 are accessible to this token. The None return "
+        "is unexpected -- re-run with HF_HUB_VERBOSITY=info to see why "
+        "from_pretrained bailed."
+    )
 
 
 def _run_diarization(wav_path: str) -> dict[str, Any]:
