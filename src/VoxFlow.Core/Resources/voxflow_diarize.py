@@ -26,9 +26,31 @@ PROTOCOL_VERSION = 1
 PYANNOTE_MODEL = "pyannote/speaker-diarization-3.1"
 
 
+# ---------------------------------------------------------------------------
+# Stdout isolation.
+#
+# sidecar-diarization-v1 reserves stdout for exactly one JSON envelope. But
+# pyannote.audio pulls in torch, speechbrain, lightning, and huggingface_hub,
+# and any of them (or their C backends) may emit loading banners, deprecation
+# warnings, or "Could not load …" messages onto fd 1. A single stray byte
+# corrupts the protocol and the .NET client sees "malformed JSON".
+#
+# Guarantee: before we import anything heavy, dup fd 1 off to a stashed fd
+# and point fd 1 at fd 2 (stderr). Python-level sys.stdout is also rebound
+# to stderr. All library chatter — Python or C — ends up on stderr, which
+# PyannoteSidecarClient drains and only scans for NDJSON progress lines. The
+# stashed fd is the *only* channel for _write_response, so the JSON envelope
+# is immune to third-party stdout pollution.
+# ---------------------------------------------------------------------------
+_real_stdout_fd = os.dup(1)
+os.dup2(2, 1)
+sys.stdout = sys.stderr
+_real_stdout = os.fdopen(_real_stdout_fd, "w", encoding="utf-8")
+
+
 def _write_response(payload: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(payload))
-    sys.stdout.flush()
+    _real_stdout.write(json.dumps(payload))
+    _real_stdout.flush()
 
 
 def _error_envelope(message: str) -> dict[str, Any]:
