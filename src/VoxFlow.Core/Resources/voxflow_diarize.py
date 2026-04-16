@@ -16,6 +16,7 @@ Error:    {"version": 1, "status": "error", "error": "<message>", "speakers": []
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
@@ -232,16 +233,40 @@ def _run_diarization(wav_path: str) -> dict[str, Any]:
         os.environ.get("HUGGING_FACE_HUB_TOKEN")
         or os.environ.get("HF_TOKEN")
     )
+
+    # pyannote.audio 3.3.x wraps from_pretrained in a bare try/except that
+    # prints "Could not download ..." to stdout on any failure and returns
+    # None instead of raising. That print is normally lost: our startup guard
+    # has already redirected fd 1 to fd 2, and the .NET client only scans
+    # stderr for NDJSON progress lines. Capture both Python-level streams in
+    # a StringIO for the duration of the call so we can surface the real
+    # reason in the error envelope if pipeline ends up None.
+    captured = io.StringIO()
+    saved_out, saved_err = sys.stdout, sys.stderr
+    sys.stdout = captured
+    sys.stderr = captured
     try:
-        pipeline = Pipeline.from_pretrained(PYANNOTE_MODEL, use_auth_token=hf_token)
-    except Exception as exc:  # pragma: no cover - exercised in integration tests
-        return _error_envelope(f"failed to load pyannote pipeline '{PYANNOTE_MODEL}': {exc}")
+        try:
+            pipeline = Pipeline.from_pretrained(PYANNOTE_MODEL, use_auth_token=hf_token)
+        except Exception as exc:  # pragma: no cover - exercised in integration tests
+            return _error_envelope(
+                f"failed to load pyannote pipeline '{PYANNOTE_MODEL}': {exc}. "
+                f"Captured pyannote output: {captured.getvalue().strip()!r}"
+            )
+    finally:
+        sys.stdout, sys.stderr = saved_out, saved_err
 
     if pipeline is None:
+        swallowed = captured.getvalue().strip()
         diag = _diagnose_none_pipeline(hf_token)
+        swallowed_suffix = (
+            f" Swallowed pyannote stdout/stderr during from_pretrained: {swallowed!r}."
+            if swallowed
+            else " No output was captured from pyannote during from_pretrained -- pipeline bailed silently."
+        )
         return _error_envelope(
-            f"Pipeline.from_pretrained('{PYANNOTE_MODEL}') returned None. {diag} "
-            "Required actions: (a) ensure HUGGING_FACE_HUB_TOKEN is exported in the "
+            f"Pipeline.from_pretrained('{PYANNOTE_MODEL}') returned None.{swallowed_suffix} "
+            f"{diag} Required actions: (a) ensure HUGGING_FACE_HUB_TOKEN is exported in the "
             "shell that launches VoxFlow; (b) accept the license on BOTH "
             "https://huggingface.co/pyannote/speaker-diarization-3.1 AND "
             "https://huggingface.co/pyannote/segmentation-3.0 using the same HF account."
