@@ -19,3 +19,9 @@ huggingface_hub>=0.23,<0.32
 # declare it as a hard dependency, so pip leaves it out of a fresh venv and
 # pipeline load fails with "No module named 'matplotlib'". Pin explicitly.
 matplotlib>=3.7
+# torch 2.2.x ships C extensions compiled against the NumPy 1.x ABI. NumPy
+# 2.0 (June 2024) broke that ABI, so a fresh pip resolve pulls numpy>=2 and
+# torch 2.2.x crashes at first tensor->numpy conversion with "Numpy is not
+# available", even though numpy is technically installed. Pin numpy below
+# 2.0 until we can move off torch 2.2.x (which means off Intel Mac x86_64).
+numpy>=1.23,<2
