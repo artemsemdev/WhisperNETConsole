@@ -15,7 +15,7 @@ public sealed record SpeakerLabelingOptions(
         Enabled: false,
         TimeoutSeconds: 600,
         RuntimeMode: PythonRuntimeMode.ManagedVenv,
-        ModelId: "pyannote/speaker-diarization-community-1");
+        ModelId: "pyannote/speaker-diarization-3.1");
 
     public int TimeoutSeconds { get; } = EnsurePositiveTimeout(TimeoutSeconds);
     public string ModelId { get; } = EnsureNonEmptyModelId(ModelId);

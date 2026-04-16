@@ -23,7 +23,7 @@ from typing import Any
 
 
 PROTOCOL_VERSION = 1
-PYANNOTE_MODEL = "pyannote/speaker-diarization-community-1"
+PYANNOTE_MODEL = "pyannote/speaker-diarization-3.1"
 
 
 def _write_response(payload: dict[str, Any]) -> None:

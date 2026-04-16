@@ -96,7 +96,7 @@ public sealed class VoxflowTranscriptArtifactWriterTests
         };
         var metadata = new TranscriptMetadata(
             SchemaVersion: 1,
-            DiarizationModel: "pyannote/speaker-diarization-community-1",
+            DiarizationModel: "pyannote/speaker-diarization-3.1",
             SidecarVersion: 1);
         return new TranscriptDocument(speakers, words, turns, metadata);
     }

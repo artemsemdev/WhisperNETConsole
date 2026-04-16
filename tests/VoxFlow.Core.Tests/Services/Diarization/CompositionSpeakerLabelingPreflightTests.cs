@@ -80,10 +80,10 @@ public sealed class CompositionSpeakerLabelingPreflightTests
         using var paths = new FakeVenvPaths();
         var launcher = new FakeProcessLauncher();
         using var cacheDir = new TemporaryDirectory();
-        Directory.CreateDirectory(Path.Combine(cacheDir.Path, "models--pyannote--speaker-diarization-community-1"));
+        Directory.CreateDirectory(Path.Combine(cacheDir.Path, "models--pyannote--speaker-diarization-3.1"));
         var preflight = new CompositionSpeakerLabelingPreflight(launcher, paths, cacheDir.Path);
 
-        var cached = preflight.IsModelCached("pyannote/speaker-diarization-community-1");
+        var cached = preflight.IsModelCached("pyannote/speaker-diarization-3.1");
 
         Assert.True(cached);
     }
@@ -96,7 +96,7 @@ public sealed class CompositionSpeakerLabelingPreflightTests
         using var cacheDir = new TemporaryDirectory();
         var preflight = new CompositionSpeakerLabelingPreflight(launcher, paths, cacheDir.Path);
 
-        var cached = preflight.IsModelCached("pyannote/speaker-diarization-community-1");
+        var cached = preflight.IsModelCached("pyannote/speaker-diarization-3.1");
 
         Assert.False(cached);
     }
@@ -109,7 +109,7 @@ public sealed class CompositionSpeakerLabelingPreflightTests
         var missingRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var preflight = new CompositionSpeakerLabelingPreflight(launcher, paths, missingRoot);
 
-        var cached = preflight.IsModelCached("pyannote/speaker-diarization-community-1");
+        var cached = preflight.IsModelCached("pyannote/speaker-diarization-3.1");
 
         Assert.False(cached);
     }

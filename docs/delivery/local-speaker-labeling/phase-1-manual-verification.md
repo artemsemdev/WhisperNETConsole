@@ -14,7 +14,7 @@ This guide is written so that you can run everything yourself, on your own machi
 2. **ffmpeg** on PATH (same as before).
 3. **Hugging Face account + accepted pyannote license.** pyannote's community model is gated. You must:
    - Create an account at https://huggingface.co/
-   - Visit https://huggingface.co/pyannote/speaker-diarization-community-1 and click **Agree and access repository**
+   - Visit https://huggingface.co/pyannote/speaker-diarization-3.1 and click **Agree and access repository**
    - Create a read token at https://huggingface.co/settings/tokens
    - Export it in the shell you'll run the CLI from, **before** launching:
      ```bash
@@ -78,7 +78,7 @@ If you see any of: speaker prefixes in the output, a `.voxflow.json` sidecar, or
    - `transcription.resultFilePath` → `/tmp/voxflow-phase1/enabled.txt` (so you don't overwrite the disabled-path artifact)
    - `transcription.wavFilePath` → `/tmp/voxflow-phase1/enabled.wav`
    - `transcription.speakerLabeling.enabled` → `true`
-   - Leave `pythonRuntimeMode` at `"ManagedVenv"` and `modelId` at `"pyannote/speaker-diarization-community-1"`.
+   - Leave `pythonRuntimeMode` at `"ManagedVenv"` and `modelId` at `"pyannote/speaker-diarization-3.1"`.
    - Leave `timeoutSeconds` at `600`.
 
 ## 4. First run — expect venv bootstrap
@@ -95,14 +95,14 @@ dotnet run --project src/VoxFlow.Cli -- --settings /tmp/voxflow-phase1-enabled.j
 Before transcription starts, the validation report now includes two new checks:
 
 - **`Speaker labeling runtime`** — on a fresh machine this will be `Warning` with a message like `Managed venv not yet created at '…/VoxFlow/python-runtime'`. That is fine — it's informational, `CanStart` stays `true`, and bootstrap runs lazily during enrichment.
-- **`Speaker labeling model cache`** — on a fresh machine this will be `Warning` with `Model pyannote/speaker-diarization-community-1 is not cached and will be downloaded on first run.`
+- **`Speaker labeling model cache`** — on a fresh machine this will be `Warning` with `Model pyannote/speaker-diarization-3.1 is not cached and will be downloaded on first run.`
 
 Both are warnings, not failures. Validation should still report `PASSED WITH WARNINGS`.
 
 ### 4b. Where files go
 
 - Managed venv: `~/Library/Application Support/VoxFlow/python-runtime/` (macOS) or `%AppData%\VoxFlow\python-runtime\` (Windows). You should see a `bin/python3` or `Scripts\python.exe` after bootstrap.
-- Pyannote model cache: `~/.cache/huggingface/hub/models--pyannote--speaker-diarization-community-1/` (or under `$HF_HOME/hub` / `$HF_HUB_CACHE` if you've overridden them).
+- Pyannote model cache: `~/.cache/huggingface/hub/models--pyannote--speaker-diarization-3.1/` (or under `$HF_HOME/hub` / `$HF_HUB_CACHE` if you've overridden them).
 
 ### 4c. Progress reporting during enrichment
 

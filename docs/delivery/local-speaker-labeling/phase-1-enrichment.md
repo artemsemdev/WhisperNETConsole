@@ -71,12 +71,12 @@ Conventions for every PR below:
 
 **Files touched (modified):**
 - `src/VoxFlow.Core/Configuration/TranscriptionOptions.cs` — add `public SpeakerLabelingOptions SpeakerLabeling { get; }`, populate it in the private constructor via a new `CreateSpeakerLabelingOptions` helper, and add a matching nullable `SpeakerLabelingConfiguration` class to `TranscriptionConfiguration` so JSON binding works. When the JSON section is absent, default to `SpeakerLabelingOptions.Disabled`.
-- [appsettings.json](../../../appsettings.json) and [appsettings.example.json](../../../appsettings.example.json) — add the `speakerLabeling` nested section inside `transcription` with `enabled=false`, `timeoutSeconds=600`, `pythonRuntimeMode="ManagedVenv"`, `modelId="pyannote/speaker-diarization-community-1"`. The example file must mirror the loader-compatible shape exactly; otherwise `TestSettingsFileFactory` drifts.
+- [appsettings.json](../../../appsettings.json) and [appsettings.example.json](../../../appsettings.example.json) — add the `speakerLabeling` nested section inside `transcription` with `enabled=false`, `timeoutSeconds=600`, `pythonRuntimeMode="ManagedVenv"`, `modelId="pyannote/speaker-diarization-3.1"`. The example file must mirror the loader-compatible shape exactly; otherwise `TestSettingsFileFactory` drifts.
 
 **TDD steps:**
 
 1. **Red.** `SpeakerLabelingOptionsTests.Disabled_StaticInstance_HasEnabledFalse_AndHarmlessDefaults`. Compile fails: type doesn't exist.
-2. **Green.** Create the record and a `static readonly SpeakerLabelingOptions Disabled = new(Enabled: false, TimeoutSeconds: 600, RuntimeMode: PythonRuntimeMode.ManagedVenv, ModelId: "pyannote/speaker-diarization-community-1");`. Test passes.
+2. **Green.** Create the record and a `static readonly SpeakerLabelingOptions Disabled = new(Enabled: false, TimeoutSeconds: 600, RuntimeMode: PythonRuntimeMode.ManagedVenv, ModelId: "pyannote/speaker-diarization-3.1");`. Test passes.
 3. **Red.** `SpeakerLabelingOptionsTests.Construct_ValidInputs_ExposesFields`. Assert every property round-trips from the constructor.
 4. **Green.** Nothing to change — the record satisfies it. This is a guard test.
 5. **Red.** `SpeakerLabelingOptionsTests.Construct_NegativeTimeout_Throws`. Construct with `TimeoutSeconds = -1`, expect an `InvalidOperationException` mentioning the setting name.

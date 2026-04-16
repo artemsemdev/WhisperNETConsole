@@ -43,7 +43,7 @@ public sealed class TranscriptDocumentTests
 
         var metadata = new TranscriptMetadata(
             SchemaVersion: 1,
-            DiarizationModel: "pyannote/speaker-diarization-community-1",
+            DiarizationModel: "pyannote/speaker-diarization-3.1",
             SidecarVersion: 1);
 
         var document = new TranscriptDocument(speakers, words, turns, metadata);
@@ -71,7 +71,7 @@ public sealed class TranscriptDocumentTests
 
         Assert.NotNull(document.Metadata);
         Assert.Equal(1, document.Metadata.SchemaVersion);
-        Assert.Equal("pyannote/speaker-diarization-community-1", document.Metadata.DiarizationModel);
+        Assert.Equal("pyannote/speaker-diarization-3.1", document.Metadata.DiarizationModel);
         Assert.Equal(1, document.Metadata.SidecarVersion);
     }
 
@@ -142,7 +142,7 @@ public sealed class TranscriptDocumentTests
 
         var metadata = new TranscriptMetadata(
             SchemaVersion: 1,
-            DiarizationModel: "pyannote/speaker-diarization-community-1",
+            DiarizationModel: "pyannote/speaker-diarization-3.1",
             SidecarVersion: 1);
 
         return new TranscriptDocument(speakers, words, turns, metadata);

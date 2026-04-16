@@ -170,7 +170,7 @@ public sealed class TranscriptionOptionsTests
                 enabled = false,
                 timeoutSeconds = 600,
                 pythonRuntimeMode = "managedvenv",
-                modelId = "pyannote/speaker-diarization-community-1"
+                modelId = "pyannote/speaker-diarization-3.1"
             });
 
         var options = TranscriptionOptions.LoadFromPath(settingsPath);
@@ -195,7 +195,7 @@ public sealed class TranscriptionOptionsTests
                 enabled = true,
                 timeoutSeconds = 600,
                 pythonRuntimeMode = "Wat",
-                modelId = "pyannote/speaker-diarization-community-1"
+                modelId = "pyannote/speaker-diarization-3.1"
             });
 
         var exception = Assert.Throws<InvalidOperationException>(
