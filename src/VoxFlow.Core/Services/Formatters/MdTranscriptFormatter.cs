@@ -40,7 +40,10 @@ internal sealed class MdTranscriptFormatter : ITranscriptFormatter
         {
             foreach (var turn in context.SpeakerTranscript.Turns)
             {
-                var text = string.Join(" ", turn.Words.Select(w => w.Text));
+                // Whisper emits BPE subwords; word-initial tokens already
+                // carry a leading " ". Concatenate as-is, then trim the
+                // leading space on the first token of each turn.
+                var text = string.Concat(turn.Words.Select(w => w.Text)).Trim();
                 builder.AppendLine(string.Create(CultureInfo.InvariantCulture, $"**Speaker {turn.SpeakerId}:** {text}"));
                 builder.AppendLine();
             }

@@ -64,6 +64,25 @@ public sealed class TranscriptFormatterTests
     }
 
     [Fact]
+    public void TxtFormatter_SubwordTokens_AreConcatenated_IntoWholeWords()
+    {
+        // whisper.net emits BPE subwords like " Him", "al", "ayan" for
+        // "Himalayan". The formatter must concatenate tokens as-is (the
+        // leading " " on word-initial tokens already provides the spacing)
+        // rather than space-joining them, which would produce "Him al ayan"
+        // and doubled spaces between words.
+        var formatter = new TxtTranscriptFormatter();
+        var document = BuildSubwordSpeakerDocument();
+        var context = DefaultContext with { SpeakerTranscript = document };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("Speaker A: Pink Himalayan salt", output);
+        Assert.DoesNotContain("Him al ayan", output);
+        Assert.DoesNotContain("  ", output);
+    }
+
+    [Fact]
     public void TxtFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
     {
         var formatter = new TxtTranscriptFormatter();
@@ -371,6 +390,22 @@ public sealed class TranscriptFormatterTests
     }
 
     [Fact]
+    public void MdFormatter_SubwordTokens_AreConcatenated_IntoWholeWords()
+    {
+        // See TxtFormatter_SubwordTokens_AreConcatenated_IntoWholeWords --
+        // same rationale applies here. The markdown turn must render the
+        // joined word ("Himalayan"), not the raw subword pieces.
+        var formatter = new MdTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildSubwordSpeakerDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("**Speaker A:** Pink Himalayan salt", output);
+        Assert.DoesNotContain("Him al ayan", output);
+        Assert.DoesNotContain("**Speaker A:**  ", output);
+    }
+
+    [Fact]
     public void MdFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
     {
         var formatter = new MdTranscriptFormatter();
@@ -411,18 +446,48 @@ public sealed class TranscriptFormatterTests
 
     private static TranscriptDocument BuildTwoSpeakerDocument()
     {
+        // whisper.cpp/whisper.net emit BPE subword tokens, not whole words.
+        // Word-initial tokens carry a leading " " (the decoded "▁" marker);
+        // subword continuations do not. The fixture reflects that reality so
+        // the formatter test can detect any regression that reintroduces
+        // space-joining ("Hello  there") or subword splitting ("Hell o there").
         var words = new[]
         {
             new TranscriptWord(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1), "Hello", "A"),
-            new TranscriptWord(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), "there", "A"),
-            new TranscriptWord(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3), "General", "B"),
-            new TranscriptWord(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(4), "Kenobi", "B")
+            new TranscriptWord(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), " there", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3), " General", "B"),
+            new TranscriptWord(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(4), " Kenobi", "B")
         };
         var turns = SpeakerTurn.GroupConsecutive(words);
         var speakers = new[]
         {
             new SpeakerInfo("A", "A", TimeSpan.FromSeconds(2)),
             new SpeakerInfo("B", "B", TimeSpan.FromSeconds(2))
+        };
+        return new TranscriptDocument(
+            speakers,
+            words,
+            turns,
+            new TranscriptMetadata(1, "pyannote/test", 1));
+    }
+
+    private static TranscriptDocument BuildSubwordSpeakerDocument()
+    {
+        // Real whisper output for "Himalayan" is three BPE pieces: " Him",
+        // "al", "ayan". The formatter must concatenate them so the rendered
+        // word is "Himalayan", not "Him al ayan".
+        var words = new[]
+        {
+            new TranscriptWord(TimeSpan.FromSeconds(0),   TimeSpan.FromSeconds(0.2), " Pink", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.2), TimeSpan.FromSeconds(0.4), " Him",  "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.4), TimeSpan.FromSeconds(0.5), "al",    "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(0.7), "ayan",  "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.7), TimeSpan.FromSeconds(1.0), " salt", "A")
+        };
+        var turns = SpeakerTurn.GroupConsecutive(words);
+        var speakers = new[]
+        {
+            new SpeakerInfo("A", "A", TimeSpan.FromSeconds(1))
         };
         return new TranscriptDocument(
             speakers,

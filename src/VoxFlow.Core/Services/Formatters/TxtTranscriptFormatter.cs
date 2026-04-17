@@ -39,7 +39,10 @@ internal sealed class TxtTranscriptFormatter : ITranscriptFormatter
             builder.Append("Speaker ");
             builder.Append(turn.SpeakerId);
             builder.Append(": ");
-            builder.AppendLine(string.Join(" ", turn.Words.Select(w => w.Text)));
+            // Whisper emits BPE subwords; word-initial tokens already carry
+            // a leading " ". Concatenate as-is, then trim the leading space
+            // on the first token of each turn.
+            builder.AppendLine(string.Concat(turn.Words.Select(w => w.Text)).Trim());
         }
         return builder.ToString();
     }
