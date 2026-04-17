@@ -42,7 +42,8 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
     public static DesktopUiTestContext Create(
         IConfigurationService? configurationService = null,
         IValidationService? validationService = null,
-        DelegateTranscriptionService? transcriptionService = null)
+        DelegateTranscriptionService? transcriptionService = null,
+        DesktopConfigurationService? desktopConfigurationService = null)
     {
         VoxFlow.Desktop.Platform.MacFilePicker.Reset();
         FilePicker.Default = new FilePicker();
@@ -65,7 +66,14 @@ internal sealed class DesktopUiTestContext : IAsyncDisposable
         services.AddSingleton<IJSRuntime>(jsRuntime);
         services.AddSingleton(viewModel);
         services.AddSingleton<IResultActionService>(resultActionService);
-        services.AddSingleton<DesktopConfigurationService>();
+        if (desktopConfigurationService is not null)
+        {
+            services.AddSingleton(desktopConfigurationService);
+        }
+        else
+        {
+            services.AddSingleton<DesktopConfigurationService>();
+        }
 
         var renderer = new TestRenderer(services.BuildServiceProvider());
         return new DesktopUiTestContext(renderer, viewModel, jsRuntime, transcription, resultActionService);
