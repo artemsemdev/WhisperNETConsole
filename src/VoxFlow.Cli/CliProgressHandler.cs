@@ -37,6 +37,10 @@ internal sealed class CliProgressHandler : IProgress<ProgressUpdate>, IDisposabl
     private DateTime _lastUpdateUtc;
     private ProgressPhase? _lastPhase;
 
+    private static ProgressPhase PhaseOf(ProgressStage stage) => ProgressPhaseBanding.PhaseOf(stage);
+    private static double LocalPercent(ProgressStage stage, double overall) => ProgressPhaseBanding.LocalPercent(stage, overall);
+    private static double PhaseUpperBound(ProgressStage stage) => ProgressPhaseBanding.PhaseUpperBound(stage);
+
     public CliProgressHandler(ConsoleProgressOptions options)
         : this(options, DefaultHeartbeatInterval)
     {
@@ -218,54 +222,6 @@ internal sealed class CliProgressHandler : IProgress<ProgressUpdate>, IDisposabl
 
         sb.Append(Colorize("]", "90"));
     }
-
-    private enum ProgressPhase
-    {
-        Transcription,
-        Diarization,
-        Merge
-    }
-
-    private static ProgressPhase PhaseOf(ProgressStage stage) => stage switch
-    {
-        ProgressStage.Diarizing => ProgressPhase.Diarization,
-        ProgressStage.Writing or ProgressStage.Complete => ProgressPhase.Merge,
-        _ => ProgressPhase.Transcription
-    };
-
-    private static double LocalPercent(ProgressStage stage, double overall)
-    {
-        // Failed can arrive at any overall percent; show it as-is instead of
-        // forcing it through a phase band so the user sees where it gave up.
-        if (stage == ProgressStage.Failed)
-            return Clamp(overall);
-
-        var (start, end) = PhaseOf(stage) switch
-        {
-            ProgressPhase.Transcription => (0.0, 90.0),
-            ProgressPhase.Diarization => (90.0, 95.0),
-            ProgressPhase.Merge => (95.0, 100.0),
-            _ => (0.0, 100.0)
-        };
-        var span = end - start;
-        if (span <= 0) return 0.0;
-        return Clamp((overall - start) / span * 100.0);
-    }
-
-    private static double Clamp(double value)
-    {
-        if (value < 0) return 0;
-        if (value > 100) return 100;
-        return value;
-    }
-
-    private static double PhaseUpperBound(ProgressStage stage) => PhaseOf(stage) switch
-    {
-        ProgressPhase.Transcription => 90.0,
-        ProgressPhase.Diarization => 95.0,
-        ProgressPhase.Merge => 100.0,
-        _ => 100.0
-    };
 
     private static string FormatPhase(ProgressStage stage)
     {
