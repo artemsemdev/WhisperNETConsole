@@ -305,4 +305,102 @@ public sealed class DesktopConfigurationTests : IDisposable
         Assert.True(validation.GetProperty("enabled").GetBoolean());
         Assert.True(validation.GetProperty("checkModelDirectory").GetBoolean());
     }
+
+    // -----------------------------------------------------------------------
+    // SaveUserOverridesAsync — new override is added without wiping previously
+    // saved keys. Needed so toggling speakerLabeling.enabled does not clobber
+    // the resultFormat the format-picker saved on a previous click.
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task SaveUserOverridesAsync_NewKey_PreservesPreviouslySavedKeys()
+    {
+        var appSupport = Path.Combine(_tempDir, "app-support");
+        var documents = Path.Combine(_tempDir, "documents");
+        var service = new DesktopConfigurationService(appSupport, documents);
+        Directory.CreateDirectory(appSupport);
+        var userFile = Path.Combine(appSupport, "appsettings.json");
+        await File.WriteAllTextAsync(
+            userFile,
+            """
+            {
+              "transcription": {
+                "resultFormat": "md"
+              }
+            }
+            """);
+
+        await service.SaveUserOverridesAsync(new Dictionary<string, object>
+        {
+            ["speakerLabeling"] = new Dictionary<string, object>
+            {
+                ["enabled"] = true
+            }
+        });
+
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(userFile));
+        var transcription = doc.RootElement.GetProperty("transcription");
+        Assert.Equal("md", transcription.GetProperty("resultFormat").GetString());
+        Assert.True(
+            transcription.GetProperty("speakerLabeling").GetProperty("enabled").GetBoolean());
+    }
+
+    [Fact]
+    public async Task SaveUserOverridesAsync_SameKeyTwice_UpdatesValue()
+    {
+        var appSupport = Path.Combine(_tempDir, "app-support");
+        var documents = Path.Combine(_tempDir, "documents");
+        var service = new DesktopConfigurationService(appSupport, documents);
+
+        await service.SaveUserOverridesAsync(new Dictionary<string, object>
+        {
+            ["resultFormat"] = "txt"
+        });
+        await service.SaveUserOverridesAsync(new Dictionary<string, object>
+        {
+            ["resultFormat"] = "md"
+        });
+
+        var userFile = Path.Combine(appSupport, "appsettings.json");
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(userFile));
+        Assert.Equal(
+            "md",
+            doc.RootElement.GetProperty("transcription").GetProperty("resultFormat").GetString());
+    }
+
+    [Fact]
+    public async Task SaveUserOverridesAsync_NestedOverride_DeepMergesWithPrevious()
+    {
+        var appSupport = Path.Combine(_tempDir, "app-support");
+        var documents = Path.Combine(_tempDir, "documents");
+        var service = new DesktopConfigurationService(appSupport, documents);
+        Directory.CreateDirectory(appSupport);
+        var userFile = Path.Combine(appSupport, "appsettings.json");
+        await File.WriteAllTextAsync(
+            userFile,
+            """
+            {
+              "transcription": {
+                "speakerLabeling": {
+                  "timeoutSeconds": 900
+                }
+              }
+            }
+            """);
+
+        await service.SaveUserOverridesAsync(new Dictionary<string, object>
+        {
+            ["speakerLabeling"] = new Dictionary<string, object>
+            {
+                ["enabled"] = true
+            }
+        });
+
+        using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(userFile));
+        var speakerLabeling = doc.RootElement
+            .GetProperty("transcription")
+            .GetProperty("speakerLabeling");
+        Assert.True(speakerLabeling.GetProperty("enabled").GetBoolean());
+        Assert.Equal(900, speakerLabeling.GetProperty("timeoutSeconds").GetInt32());
+    }
 }
