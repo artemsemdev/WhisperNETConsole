@@ -801,6 +801,20 @@ button {
     color: #fece5a;
 }
 
+.message-info {
+    background: rgba(74, 168, 255, 0.08);
+    border: 1px solid rgba(74, 168, 255, 0.3);
+    color: #9ec9ff;
+}
+
+.enrichment-warnings-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 12px 0 16px;
+    align-items: center;
+}
+
 .message-icon {
     flex-shrink: 0;
     font-size: 16px;

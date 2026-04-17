@@ -914,6 +914,156 @@ public sealed class DesktopUiComponentTests
         Assert.Empty(context.ResultActionService.CopiedTexts);
     }
 
+    // -----------------------------------------------------------------------
+    // P2.5 — CompleteView: SpeakerTranscriptView integration + enrichment banner
+    // -----------------------------------------------------------------------
+
+    private static TranscriptDocument MakeSpeakerDoc(params (string Speaker, double Start, double End, string Word)[] words)
+    {
+        var meta = new TranscriptMetadata(SchemaVersion: 1, DiarizationModel: "test", SidecarVersion: 1);
+        var tokens = words
+            .Select(w => new TranscriptWord(
+                TimeSpan.FromSeconds(w.Start),
+                TimeSpan.FromSeconds(w.End),
+                w.Word,
+                w.Speaker))
+            .ToList();
+        var turns = SpeakerTurn.GroupConsecutive(tokens);
+        var roster = turns
+            .Select(t => t.SpeakerId)
+            .Distinct()
+            .Select(id => new SpeakerInfo(id, id, TimeSpan.Zero))
+            .ToList();
+        return new TranscriptDocument(roster, tokens, turns, meta);
+    }
+
+    [Fact]
+    public async Task CompleteView_NullDocument_RendersPlainTextPreview_Unchanged()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Complete,
+            transcriptionResult: new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: "/tmp/result.txt",
+                AcceptedSegmentCount: 5,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.FromSeconds(8),
+                Warnings: [],
+                TranscriptPreview: "Hello plain text."));
+
+        var rendered = await context.RenderAsync<CompleteView>();
+
+        Assert.Contains("Hello plain text.", rendered.TextContent);
+        var speakerTurns = rendered.FindElements(e => e.Attributes.ContainsKey("data-speaker-label"));
+        Assert.Empty(speakerTurns);
+    }
+
+    [Fact]
+    public async Task CompleteView_NonNullDocument_RendersSpeakerTranscriptView_AndHidesPlainTextPreview()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        var doc = MakeSpeakerDoc(("A", 0, 1, "hi"), ("B", 1, 2, "there"));
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Complete,
+            transcriptionResult: new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: "/tmp/result.voxflow.json",
+                AcceptedSegmentCount: 2,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.FromSeconds(2),
+                Warnings: [],
+                TranscriptPreview: "hi there",
+                SpeakerTranscript: doc));
+
+        var rendered = await context.RenderAsync<CompleteView>();
+
+        Assert.Contains("Speaker A", rendered.TextContent);
+        Assert.Contains("Speaker B", rendered.TextContent);
+        var speakerTurns = rendered.FindElements(e => e.Attributes.ContainsKey("data-speaker-label"));
+        Assert.Equal(2, speakerTurns.Count);
+        Assert.DoesNotContain("Transcript Preview", rendered.TextContent);
+        var plainPreview = rendered.FindElements(e => e.HasClass("transcript-preview"));
+        Assert.Empty(plainPreview);
+    }
+
+    [Fact]
+    public async Task CompleteView_EnrichmentWarnings_RendersBanner_WithEachMessage()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Complete,
+            transcriptionResult: new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: "/tmp/result.txt",
+                AcceptedSegmentCount: 5,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.FromSeconds(8),
+                Warnings: [],
+                TranscriptPreview: "preview",
+                EnrichmentWarnings: ["speaker-labeling: model load failed", "fell back to plain text"]));
+
+        var rendered = await context.RenderAsync<CompleteView>();
+
+        Assert.Contains("speaker-labeling: model load failed", rendered.TextContent);
+        Assert.Contains("fell back to plain text", rendered.TextContent);
+    }
+
+    [Fact]
+    public async Task CompleteView_EnrichmentWarnings_EmptyList_DoesNotRenderBanner()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Complete,
+            transcriptionResult: new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: "/tmp/result.txt",
+                AcceptedSegmentCount: 5,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.FromSeconds(8),
+                Warnings: [],
+                TranscriptPreview: "preview"));
+
+        var rendered = await context.RenderAsync<CompleteView>();
+
+        var banner = rendered.FindElements(e => e.HasClass("enrichment-warnings-banner"));
+        Assert.Empty(banner);
+    }
+
+    [Fact]
+    public async Task CompleteView_DocumentAndWarningsBoth_RendersBothSections()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        var doc = MakeSpeakerDoc(("A", 0, 1, "hi"));
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Complete,
+            transcriptionResult: new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: "/tmp/result.voxflow.json",
+                AcceptedSegmentCount: 1,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.FromSeconds(1),
+                Warnings: [],
+                TranscriptPreview: "hi",
+                SpeakerTranscript: doc,
+                EnrichmentWarnings: ["heads-up: partial coverage"]));
+
+        var rendered = await context.RenderAsync<CompleteView>();
+
+        Assert.Contains("heads-up: partial coverage", rendered.TextContent);
+        Assert.Contains("Speaker A", rendered.TextContent);
+    }
+
     private static string WriteSingleFileConfig(string repositoryRoot, string tempDir, string inputPath)
     {
         var rootConfigPath = Path.Combine(repositoryRoot, "appsettings.json");

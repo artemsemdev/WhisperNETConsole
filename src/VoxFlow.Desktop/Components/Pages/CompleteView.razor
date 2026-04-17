@@ -1,3 +1,4 @@
+@using VoxFlow.Desktop.Components.Shared
 @inject AppViewModel ViewModel
 @inject IResultActionService ResultActionService
 @implements IDisposable
@@ -34,8 +35,27 @@
             }
         </div>
 
-        <!-- Transcript preview -->
-        @if (!string.IsNullOrEmpty(result.TranscriptPreview))
+        @if (result.EnrichmentWarnings.Count > 0)
+        {
+            <div class="enrichment-warnings-banner" id="enrichment-warnings-banner"
+                 role="status" aria-label="Enrichment Warnings">
+                @foreach (var warning in result.EnrichmentWarnings)
+                {
+                    <div class="message message-info">
+                        <span class="message-icon" aria-hidden="true">&#x2139;</span>
+                        <span>@warning</span>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (result.SpeakerTranscript is not null)
+        {
+            <div class="complete-transcript-section">
+                <SpeakerTranscriptView Document="@result.SpeakerTranscript" />
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(result.TranscriptPreview))
         {
             <div class="complete-transcript-section">
                 <div class="complete-transcript-header">
