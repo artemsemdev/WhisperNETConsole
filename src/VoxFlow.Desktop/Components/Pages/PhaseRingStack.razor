@@ -1,0 +1,42 @@
+@using System.ComponentModel
+@using VoxFlow.Desktop.ViewModels
+@implements IDisposable
+
+@{
+    var phases = Tracker.Phases;
+}
+
+<div class="phase-ring-stack">
+    <div class="phase-ring-item">
+        <PhaseRing State="@phases[0]" PhaseToken="--phase-transcription" />
+    </div>
+    <div class="phase-ring-chevron" aria-hidden="true">@ChevronGlyph</div>
+    <div class="phase-ring-item">
+        <PhaseRing State="@phases[1]" PhaseToken="--phase-diarization" />
+    </div>
+    <div class="phase-ring-chevron" aria-hidden="true">@ChevronGlyph</div>
+    <div class="phase-ring-item">
+        <PhaseRing State="@phases[2]" PhaseToken="--phase-merge" />
+    </div>
+</div>
+
+@code {
+    private const string ChevronGlyph = "\u203A";
+
+    [Parameter, EditorRequired] public PhaseProgressTracker Tracker { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Tracker.PropertyChanged += OnTrackerChanged;
+    }
+
+    private void OnTrackerChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Tracker.PropertyChanged -= OnTrackerChanged;
+    }
+}
