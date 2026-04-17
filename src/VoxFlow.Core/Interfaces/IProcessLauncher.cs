@@ -23,4 +23,18 @@ public interface IProcessLauncher
         ProcessStartInfo startInfo,
         string stdIn,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Streaming variant that invokes <paramref name="onStdErrLine"/> for each
+    /// stderr line as it arrives (not after process exit). The captured stderr
+    /// is also accumulated into <see cref="ProcessExecutionResult.StdErr"/> so
+    /// callers that want the buffer for diagnostics still get it. Used by the
+    /// diarization sidecar to animate the CLI progress bar in real time while
+    /// pyannote.audio's pipeline is running.
+    /// </summary>
+    Task<ProcessExecutionResult> RunAsync(
+        ProcessStartInfo startInfo,
+        string stdIn,
+        Action<string>? onStdErrLine,
+        CancellationToken cancellationToken);
 }

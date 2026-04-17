@@ -91,7 +91,15 @@ public sealed class PyannoteSidecarClient : IDiarizationSidecar
         ProcessExecutionResult process;
         try
         {
-            process = await _launcher.RunAsync(psi, payload, linkedCts.Token).ConfigureAwait(false);
+            // Stream stderr per-line so the .NET side can animate the CLI bar
+            // as pyannote emits ProgressHook events. Buffering via ReadToEnd
+            // would pin the bar until process exit -- the exact "frozen bar"
+            // UX bug we are fixing.
+            process = await _launcher.RunAsync(
+                psi,
+                payload,
+                onStdErrLine: line => ReportProgressLine(line, progress),
+                linkedCts.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -103,8 +111,6 @@ public sealed class PyannoteSidecarClient : IDiarizationSidecar
             }
             throw;
         }
-
-        ForwardProgress(process.StdErr, progress);
 
         if (process.ExitCode != 0 && string.IsNullOrWhiteSpace(process.StdOut))
         {
@@ -179,50 +185,47 @@ public sealed class PyannoteSidecarClient : IDiarizationSidecar
         return new DiarizationResult(version, speakers, segments);
     }
 
-    private static void ForwardProgress(string stdErr, IProgress<SpeakerLabelingProgress>? progress)
+    private static void ReportProgressLine(string rawLine, IProgress<SpeakerLabelingProgress>? progress)
     {
-        if (progress is null || string.IsNullOrEmpty(stdErr))
+        if (progress is null)
         {
             return;
         }
 
-        foreach (var rawLine in stdErr.Split('\n'))
+        var line = rawLine.Trim();
+        if (line.Length == 0 || line[0] != '{')
         {
-            var line = rawLine.Trim();
-            if (line.Length == 0 || line[0] != '{')
-            {
-                continue;
-            }
+            return;
+        }
 
-            SpeakerLabelingProgress? parsed;
-            try
+        SpeakerLabelingProgress? parsed;
+        try
+        {
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("stage", out var stageEl))
             {
-                using var doc = JsonDocument.Parse(line);
-                var root = doc.RootElement;
-                if (!root.TryGetProperty("stage", out var stageEl))
-                {
-                    continue;
-                }
-                var stage = stageEl.GetString();
-                if (stage is null)
-                {
-                    continue;
-                }
-                double? fraction = root.TryGetProperty("fraction", out var fracEl)
-                    && fracEl.ValueKind == JsonValueKind.Number
-                        ? fracEl.GetDouble()
-                        : null;
-                parsed = new SpeakerLabelingProgress(stage, fraction);
+                return;
             }
-            catch (JsonException)
+            var stage = stageEl.GetString();
+            if (stage is null)
             {
-                parsed = null;
+                return;
             }
+            double? fraction = root.TryGetProperty("fraction", out var fracEl)
+                && fracEl.ValueKind == JsonValueKind.Number
+                    ? fracEl.GetDouble()
+                    : null;
+            parsed = new SpeakerLabelingProgress(stage, fraction);
+        }
+        catch (JsonException)
+        {
+            parsed = null;
+        }
 
-            if (parsed is not null)
-            {
-                progress.Report(parsed);
-            }
+        if (parsed is not null)
+        {
+            progress.Report(parsed);
         }
     }
 

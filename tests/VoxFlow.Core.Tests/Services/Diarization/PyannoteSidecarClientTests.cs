@@ -223,6 +223,63 @@ public sealed class PyannoteSidecarClientTests
     }
 
     [Fact]
+    public async Task DiarizeAsync_ProgressStreamsPerLine_BeforeProcessExits()
+    {
+        // Proves per-line streaming: progress events must be reported while the
+        // simulated process is still running. The previous implementation
+        // buffered stderr via ReadToEndAsync and only parsed it after the
+        // process exited -- the CLI bar then froze for the entire pyannote run.
+        var runtime = new FakePythonRuntime();
+        var launcher = new FakeProcessLauncher();
+        var processCanComplete = new TaskCompletionSource();
+        var secondProgressReported = new TaskCompletionSource();
+
+        launcher.SetStreamingResponse(runtime.InterpreterPath, async (emitStdErrLine, ct) =>
+        {
+            emitStdErrLine("""{"stage":"segmentation"}""");
+            emitStdErrLine("""{"stage":"segmentation","fraction":0.5}""");
+            await processCanComplete.Task.ConfigureAwait(false);
+            return new ProcessExecutionResult(
+                0,
+                """{"version":1,"status":"ok","speakers":[{"id":"A","totalDuration":1.0}],"segments":[{"speaker":"A","start":0.0,"end":1.0}]}""",
+                string.Empty);
+        });
+
+        var reports = new List<SpeakerLabelingProgress>();
+        var progress = new DelegateProgress<SpeakerLabelingProgress>(p =>
+        {
+            lock (reports)
+            {
+                reports.Add(p);
+                if (reports.Count == 2) secondProgressReported.TrySetResult();
+            }
+        });
+
+        var client = new PyannoteSidecarClient(runtime, launcher, ScriptPath, TimeSpan.FromSeconds(5));
+        var diarizeTask = client.DiarizeAsync(
+            new DiarizationRequest("/tmp/a.wav"), progress, CancellationToken.None);
+
+        var delivered = await Task.WhenAny(secondProgressReported.Task, Task.Delay(2000));
+        Assert.Same(secondProgressReported.Task, delivered);
+        Assert.False(diarizeTask.IsCompleted, "progress must arrive before the process completes");
+
+        processCanComplete.SetResult();
+        await diarizeTask;
+
+        Assert.Equal(2, reports.Count);
+        Assert.Equal("segmentation", reports[0].Stage);
+        Assert.Null(reports[0].Fraction);
+        Assert.Equal(0.5, reports[1].Fraction);
+    }
+
+    private sealed class DelegateProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _handler;
+        public DelegateProgress(Action<T> handler) => _handler = handler;
+        public void Report(T value) => _handler(value);
+    }
+
+    [Fact]
     public async Task DiarizeAsync_SchemaViolation_ThrowsWithSchemaViolation()
     {
         var runtime = new FakePythonRuntime();
