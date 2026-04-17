@@ -60,11 +60,15 @@ internal sealed class CliProgressHandler : IProgress<ProgressUpdate>, IDisposabl
         if (!_options.Enabled)
             return;
 
-        bool phaseChanged;
+        ProgressUpdate? previousForFinalize = null;
         lock (_stateLock)
         {
             var newPhase = PhaseOf(value.Stage);
-            phaseChanged = _lastPhase.HasValue && _lastPhase.Value != newPhase;
+            var phaseChanged = _lastPhase.HasValue && _lastPhase.Value != newPhase;
+            if (phaseChanged)
+            {
+                previousForFinalize = _lastUpdate;
+            }
             _lastUpdate = value;
             _lastUpdateUtc = DateTime.UtcNow;
             _lastPhase = newPhase;
@@ -80,10 +84,20 @@ internal sealed class CliProgressHandler : IProgress<ProgressUpdate>, IDisposabl
             }
         }
 
-        if (phaseChanged)
+        if (previousForFinalize is not null)
         {
-            // Finalize the previous phase's bar on its own line so each
-            // completed phase stays visible above the currently active one.
+            // Neither producer reliably emits a closing 100% frame: Whisper's
+            // progress callback stops in the 75-90% range and pyannote's
+            // ProgressHook emits step-boundary events without total/completed
+            // for most sub-steps, leaving Fraction null. Synthesize a final
+            // frame at the previous phase's band ceiling so the committed
+            // stacked history shows each completed phase finished cleanly.
+            var finalized = previousForFinalize with
+            {
+                PercentComplete = PhaseUpperBound(previousForFinalize.Stage),
+                Message = "done"
+            };
+            RenderLine(finalized, isTerminal: false);
             Console.WriteLine();
             _lastRenderTick = 0;
         }
@@ -244,6 +258,14 @@ internal sealed class CliProgressHandler : IProgress<ProgressUpdate>, IDisposabl
         if (value > 100) return 100;
         return value;
     }
+
+    private static double PhaseUpperBound(ProgressStage stage) => PhaseOf(stage) switch
+    {
+        ProgressPhase.Transcription => 90.0,
+        ProgressPhase.Diarization => 95.0,
+        ProgressPhase.Merge => 100.0,
+        _ => 100.0
+    };
 
     private static string FormatPhase(ProgressStage stage)
     {

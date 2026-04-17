@@ -127,6 +127,71 @@ public sealed class CliProgressHandlerTests
     }
 
     [Fact]
+    public void Report_PhaseTransition_FinalizesPreviousPhaseAtLocal100()
+    {
+        // Whisper's progress callback stops emitting well before 100% of the
+        // file (its last callback typically lands in the 75-90% range with no
+        // closing update), so the Transcription bar would freeze mid-way
+        // even though the stage is logically done. When a phase transition
+        // is observed, the CLI must render one final frame of the previous
+        // phase at local 100% before committing its line; otherwise users
+        // see a stacked history of "86.5%" / "0.0%" / "100%" that looks
+        // wrong even though the work completed successfully.
+        using var handler = new CliProgressHandler(DefaultOptions());
+        var output = Capture(() =>
+        {
+            handler.Report(new ProgressUpdate(
+                Stage: ProgressStage.Transcribing,
+                PercentComplete: 70.0, // local 77.8% -- never reaches 100
+                Elapsed: TimeSpan.FromSeconds(5)));
+            handler.Report(new ProgressUpdate(
+                Stage: ProgressStage.Diarizing,
+                PercentComplete: 90.0,
+                Elapsed: TimeSpan.FromSeconds(6),
+                Message: "starting"));
+        });
+
+        var transcriptionIdx = output.IndexOf("Transcription", StringComparison.Ordinal);
+        var diarizationIdx = output.IndexOf("Diarization", StringComparison.Ordinal);
+        Assert.True(transcriptionIdx >= 0 && diarizationIdx > transcriptionIdx,
+            "expected Transcription label to precede Diarization label");
+        var between = output[transcriptionIdx..diarizationIdx];
+        Assert.Contains(" 100.0%", between);
+    }
+
+    [Fact]
+    public void Report_DiarizationToMergeTransition_FinalizesDiarizationAtLocal100()
+    {
+        // pyannote's ProgressHook emits step-boundary events without
+        // total/completed for most sub-steps (segmentation, embeddings,
+        // discrete_diarization), so Fraction stays null and the mapped local
+        // percent stays at 0 for the entire 30-60s diarization run. The
+        // phase-finalize rule above ensures the committed Diarization line
+        // shows 100% as soon as we transition to Merge, instead of the
+        // misleading "Diarization 0.0%" the user currently sees.
+        using var handler = new CliProgressHandler(DefaultOptions());
+        var output = Capture(() =>
+        {
+            handler.Report(new ProgressUpdate(
+                Stage: ProgressStage.Diarizing,
+                PercentComplete: 90.0, // local 0%
+                Elapsed: TimeSpan.FromSeconds(5),
+                Message: "discrete_diarization"));
+            handler.Report(new ProgressUpdate(
+                Stage: ProgressStage.Writing,
+                PercentComplete: 95.0,
+                Elapsed: TimeSpan.FromSeconds(6)));
+        });
+
+        var diarizationIdx = output.IndexOf("Diarization", StringComparison.Ordinal);
+        var mergeIdx = output.IndexOf("Merge", StringComparison.Ordinal);
+        Assert.True(diarizationIdx >= 0 && mergeIdx > diarizationIdx,
+            "expected Diarization label to precede Merge label");
+        var between = output[diarizationIdx..mergeIdx];
+        Assert.Contains(" 100.0%", between);
+    }
+
+    [Fact]
     public void Report_SameStageTwice_DoesNotInjectNewline()
     {
         // Updates inside the same phase must overwrite in place via \r so we
