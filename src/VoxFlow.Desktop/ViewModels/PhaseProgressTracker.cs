@@ -87,6 +87,34 @@ public sealed class PhaseProgressTracker : INotifyPropertyChanged, IDisposable
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    /// <summary>
+    /// Returns every phase to its initial state for a fresh run. Called by
+    /// <see cref="AppViewModel"/> at the start of each transcription so the
+    /// UI doesn't carry over state from the previous file.
+    /// </summary>
+    public void Reset(bool speakerLabelingEnabled)
+    {
+        lock (_stateLock)
+        {
+            for (var i = 0; i < _phases.Length; i++)
+                _startedAt[i] = null;
+
+            _phases[(int)ProgressPhase.Transcription] = new PhaseState(
+                ProgressPhase.Transcription, PhaseStatus.Idle, 0, null, TimeSpan.Zero);
+            _phases[(int)ProgressPhase.Diarization] = new PhaseState(
+                ProgressPhase.Diarization,
+                speakerLabelingEnabled ? PhaseStatus.Idle : PhaseStatus.Skipped,
+                0,
+                speakerLabelingEnabled ? null : "skipped",
+                TimeSpan.Zero);
+            _phases[(int)ProgressPhase.Merge] = new PhaseState(
+                ProgressPhase.Merge, PhaseStatus.Idle, 0, null, TimeSpan.Zero);
+
+            DisposeHeartbeatLocked();
+        }
+        RaisePhasesChanged();
+    }
+
     public void OnProgress(ProgressUpdate update)
     {
         lock (_stateLock)

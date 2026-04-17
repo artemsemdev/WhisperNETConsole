@@ -548,6 +548,10 @@ internal static class AppViewModelStateAccessor
         SetIfProvided(viewModel, "_currentProgress", currentProgress);
         SetIfProvided(viewModel, "_errorMessage", errorMessage);
         SetIfProvided(viewModel, "_lastFilePath", lastFilePath);
+        if (currentProgress is not null)
+        {
+            viewModel.PhaseTracker.OnProgress(currentProgress);
+        }
         viewModel.NotifyStateChanged();
     }
 

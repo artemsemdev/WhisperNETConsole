@@ -25,9 +25,21 @@
         _ => "phase-ring-arc"
     };
     var phaseToken = string.IsNullOrEmpty(PhaseToken) ? "--phase-transcription" : PhaseToken;
+    var ariaValueNow = State.Status switch
+    {
+        PhaseStatus.Done => "100",
+        PhaseStatus.Running => ((int)Math.Round(pct)).ToString(CultureInfo.InvariantCulture),
+        _ => ((int)Math.Round(pct)).ToString(CultureInfo.InvariantCulture)
+    };
+    var ariaLabel = $"{State.Phase} progress";
 }
 
-<div class="phase-ring" style="--phase-color: var(@phaseToken);">
+<div class="phase-ring" style="--phase-color: var(@phaseToken);"
+     role="progressbar"
+     aria-label="@ariaLabel"
+     aria-valuemin="0"
+     aria-valuemax="100"
+     aria-valuenow="@ariaValueNow">
     <div class="phase-ring-body">
         <svg class="phase-ring-svg" viewBox="0 0 120 120"
              xmlns="http://www.w3.org/2000/svg" aria-hidden="true">

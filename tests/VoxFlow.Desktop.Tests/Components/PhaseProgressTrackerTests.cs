@@ -200,4 +200,45 @@ public sealed class PhaseProgressTrackerTests
 
         Assert.Contains(nameof(PhaseProgressTracker.Phases), changes);
     }
+
+    [Fact]
+    public void Reset_ReturnsPhasesToIdle_WhenSpeakerLabelingEnabled()
+    {
+        var clock = new ControllableTimeProvider(T0);
+        using var tracker = new PhaseProgressTracker(speakerLabelingEnabled: true, timeProvider: clock);
+        tracker.OnProgress(Frame(ProgressStage.Transcribing, 45.0));
+        clock.Advance(TimeSpan.FromSeconds(3));
+
+        tracker.Reset(speakerLabelingEnabled: true);
+
+        Assert.All(tracker.Phases, p => Assert.Equal(PhaseStatus.Idle, p.Status));
+        Assert.All(tracker.Phases, p => Assert.Equal(0.0, p.LocalPercent));
+        Assert.All(tracker.Phases, p => Assert.Equal(TimeSpan.Zero, p.Elapsed));
+    }
+
+    [Fact]
+    public void Reset_WithSpeakerLabelingDisabled_MarksDiarizationSkipped()
+    {
+        var clock = new ControllableTimeProvider(T0);
+        using var tracker = new PhaseProgressTracker(speakerLabelingEnabled: true, timeProvider: clock);
+
+        tracker.Reset(speakerLabelingEnabled: false);
+
+        Assert.Equal(PhaseStatus.Idle, tracker.Phases[0].Status);
+        Assert.Equal(PhaseStatus.Skipped, tracker.Phases[1].Status);
+        Assert.Equal(PhaseStatus.Idle, tracker.Phases[2].Status);
+    }
+
+    [Fact]
+    public void Reset_RaisesPropertyChangedForPhases()
+    {
+        var clock = new ControllableTimeProvider(T0);
+        using var tracker = new PhaseProgressTracker(speakerLabelingEnabled: true, timeProvider: clock);
+        var changes = new List<string?>();
+        tracker.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        tracker.Reset(speakerLabelingEnabled: true);
+
+        Assert.Contains(nameof(PhaseProgressTracker.Phases), changes);
+    }
 }

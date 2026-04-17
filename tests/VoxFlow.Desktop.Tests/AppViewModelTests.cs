@@ -261,6 +261,49 @@ public sealed class AppViewModelTests
     }
 
     // -----------------------------------------------------------------------
+    // P2.3d — PhaseTracker integration
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void PhaseTracker_IsExposed_AfterConstruction()
+    {
+        var vm = ViewModelFactory.Create();
+
+        Assert.NotNull(vm.PhaseTracker);
+        Assert.Equal(3, vm.PhaseTracker.Phases.Count);
+    }
+
+    [Fact]
+    public void CurrentProgressSetter_ForwardsToPhaseTracker()
+    {
+        var vm = ViewModelFactory.Create();
+
+        vm.CurrentProgress = new ProgressUpdate(
+            ProgressStage.Transcribing, 45.0, TimeSpan.FromSeconds(3));
+
+        Assert.Equal(PhaseStatus.Running, vm.PhaseTracker.Phases[0].Status);
+        Assert.Equal(50.0, vm.PhaseTracker.Phases[0].LocalPercent, 3);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_ResetsPhaseTracker_BeforeRun()
+    {
+        var vm = ViewModelFactory.Create();
+        await vm.InitializeAsync();
+        vm.CurrentProgress = new ProgressUpdate(
+            ProgressStage.Transcribing, 30.0, TimeSpan.FromSeconds(2));
+        Assert.Equal(PhaseStatus.Running, vm.PhaseTracker.Phases[0].Status);
+
+        vm.SpeakerLabelingEnabled = false;
+        await vm.TranscribeFileAsync("/tmp/audio.wav");
+
+        // After a complete pipeline all phases should be Done or Skipped,
+        // not still "Running" from the stale pre-run state. Diarization is
+        // born Skipped because SpeakerLabelingEnabled=false.
+        Assert.Equal(PhaseStatus.Skipped, vm.PhaseTracker.Phases[1].Status);
+    }
+
+    // -----------------------------------------------------------------------
     // TranscribeFileAsync — success path
     // -----------------------------------------------------------------------
 

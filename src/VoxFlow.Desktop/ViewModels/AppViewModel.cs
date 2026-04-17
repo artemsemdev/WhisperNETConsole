@@ -26,6 +26,7 @@ public class AppViewModel : INotifyPropertyChanged
     private CancellationTokenSource? _cts;
     private ResultFormat _selectedResultFormat = ResultFormat.Txt;
     private bool _speakerLabelingEnabled;
+    private readonly PhaseProgressTracker _phaseTracker = new(speakerLabelingEnabled: false);
 
     public AppViewModel(
         ITranscriptionService transcriptionService,
@@ -99,8 +100,20 @@ public class AppViewModel : INotifyPropertyChanged
     public ProgressUpdate? CurrentProgress
     {
         get => _currentProgress;
-        set { _currentProgress = value; OnPropertyChanged(); }
+        set
+        {
+            _currentProgress = value;
+            if (value is not null) _phaseTracker.OnProgress(value);
+            OnPropertyChanged();
+        }
     }
+
+    /// <summary>
+    /// Per-phase progress tracker backing the three-ring Running screen.
+    /// Reset at the start of each run with the current
+    /// <see cref="SpeakerLabelingEnabled"/> value.
+    /// </summary>
+    public PhaseProgressTracker PhaseTracker => _phaseTracker;
 
     public string? ErrorMessage
     {
@@ -192,6 +205,7 @@ public class AppViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CurrentFileName));
         TranscriptionResult = null;
         CurrentProgress = null;
+        _phaseTracker.Reset(SpeakerLabelingEnabled);
         ErrorMessage = null;
         CurrentState = AppState.Running;
         _cts?.Dispose();

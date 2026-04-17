@@ -59,7 +59,7 @@ public sealed class DesktopUiComponentTests
             currentState: AppState.Running,
             currentProgress: new ProgressUpdate(
                 ProgressStage.Transcribing,
-                42,
+                45,
                 TimeSpan.FromSeconds(125),
                 "Processing audio",
                 "English"));
@@ -68,8 +68,8 @@ public sealed class DesktopUiComponentTests
 
         Assert.Contains("audio file", rendered.TextContent);
         Assert.Contains("Processing audio", rendered.TextContent);
-        Assert.Contains("2:05", rendered.TextContent);
-        Assert.Contains("42", rendered.TextContent);
+        // Transcribing at 45% overall → Transcription-local 50% (banding 0..90)
+        Assert.Contains("50", rendered.TextContent);
     }
 
     [Fact]
@@ -644,7 +644,7 @@ public sealed class DesktopUiComponentTests
             currentState: AppState.Running,
             currentProgress: new ProgressUpdate(
                 ProgressStage.Writing,
-                95,
+                97,
                 TimeSpan.FromSeconds(60),
                 "Writing result file",
                 null));
@@ -652,8 +652,8 @@ public sealed class DesktopUiComponentTests
         var rendered = await context.RenderAsync<RunningView>();
 
         Assert.Contains("Writing result file", rendered.TextContent);
-        Assert.Contains("1:00", rendered.TextContent);
-        Assert.Contains("95", rendered.TextContent);
+        // Writing at 97% overall → Merge-local 40% (banding 95..100)
+        Assert.Contains("40", rendered.TextContent);
         Assert.DoesNotContain("Language:", rendered.TextContent);
     }
 
@@ -751,13 +751,14 @@ public sealed class DesktopUiComponentTests
             currentState: AppState.Running,
             currentProgress: new ProgressUpdate(
                 ProgressStage.Transcribing,
-                67,
+                63,
                 TimeSpan.FromSeconds(30),
                 "Processing segments"));
 
         var rendered = await context.RenderAsync<RunningView>();
 
-        Assert.Contains("67", rendered.TextContent);
+        // Transcribing at 63% overall → Transcription-local 70% (banding 0..90)
+        Assert.Contains("70", rendered.TextContent);
         Assert.Contains("%", rendered.TextContent);
     }
 
@@ -778,14 +779,15 @@ public sealed class DesktopUiComponentTests
 
         context.ViewModel.CurrentProgress = new ProgressUpdate(
             ProgressStage.Transcribing,
-            38,
+            36,
             TimeSpan.FromSeconds(12),
             "Processing audio",
             "English");
 
         await rendered.SynchronizeAsync();
 
-        Assert.Contains("38", rendered.TextContent);
+        // Transcribing at 36% overall → Transcription-local 40% (banding 0..90)
+        Assert.Contains("40", rendered.TextContent);
         Assert.Contains("Processing audio", rendered.TextContent);
     }
 
@@ -817,18 +819,22 @@ public sealed class DesktopUiComponentTests
             currentState: AppState.Running,
             currentProgress: new ProgressUpdate(
                 ProgressStage.Transcribing,
-                50,
+                45,
                 TimeSpan.FromSeconds(10),
                 "Half done"));
 
         var rendered = await context.RenderAsync<RunningView>();
 
         var progressWrapper = rendered.FindElement(
-            element => element.Name == "div" && element.HasClass("organic-progress-wrapper")
-                       && element.Attributes.ContainsKey("role"),
-            "organic progress wrapper with role");
+            element => element.Name == "div"
+                       && element.HasClass("phase-ring")
+                       && element.Attributes.ContainsKey("role")
+                       && element.Attributes.TryGetValue("aria-label", out var label)
+                       && label?.ToString() == "Transcription progress",
+            "transcription phase ring with progressbar role");
 
         Assert.Equal("progressbar", progressWrapper.Attributes["role"]?.ToString());
+        // Transcribing at 45% overall → Transcription-local 50% (banding 0..90)
         Assert.Equal("50", progressWrapper.Attributes["aria-valuenow"]?.ToString());
     }
 
