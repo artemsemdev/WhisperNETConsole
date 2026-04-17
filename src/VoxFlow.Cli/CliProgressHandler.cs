@@ -123,6 +123,7 @@ internal sealed class CliProgressHandler : IProgress<ProgressUpdate>
             ProgressStage.LoadingModel => "Loading    ",
             ProgressStage.Transcribing => "Transcribing",
             ProgressStage.Filtering => "Filtering  ",
+            ProgressStage.Diarizing => "Diarizing  ",
             ProgressStage.Writing => "Writing    ",
             ProgressStage.Complete => "Complete   ",
             ProgressStage.Failed => "Failed     ",
@@ -137,6 +138,7 @@ internal sealed class CliProgressHandler : IProgress<ProgressUpdate>
             ProgressStage.Complete => "92",
             ProgressStage.Failed => "91",
             ProgressStage.Transcribing => "96",
+            ProgressStage.Diarizing => "95",
             _ => "94"
         };
     }
