@@ -442,6 +442,59 @@ public sealed class SpeakerMergeServiceTests
     }
 
     [Fact]
+    public void Merge_DropsWhisperSpecialTokens_BeginOfSegmentAndTimestampTokens()
+    {
+        // whisper.cpp emits special tokens like [_BEG_] and [_TT_832] as raw
+        // strings in WhisperToken.Text alongside real word tokens. They must
+        // not appear in the per-word transcript; otherwise the speaker-labeled
+        // markdown renders "**Speaker A:** [_BEG_] Today's guest ... [_TT_832]".
+        var service = new SpeakerMergeService();
+        var segments = new[]
+        {
+            SegmentFactory.Create(0.0, 3.0, "Today's guest",
+                Tok("[_BEG_]",   0,   0),
+                Tok(" Today's",  0,   40),
+                Tok(" guest",    50,  90),
+                Tok("[_TT_832]", 90,  90))
+        };
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: new[] { new DiarizationSpeaker("A", 3.0) },
+            Segments: new[] { new DiarizationSegment("A", 0.0, 3.0) });
+
+        var result = service.Merge(segments, diarization, DefaultMetadata);
+
+        Assert.Equal(2, result.Words.Count);
+        Assert.Equal(" Today's", result.Words[0].Text);
+        Assert.Equal(" guest",   result.Words[1].Text);
+        Assert.DoesNotContain(result.Words, w => w.Text.Contains("[_BEG_]", StringComparison.Ordinal));
+        Assert.DoesNotContain(result.Words, w => w.Text.Contains("[_TT_", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Merge_SegmentWithOnlySpecialTokens_ContributesNoWords()
+    {
+        var service = new SpeakerMergeService();
+        var segments = new[]
+        {
+            SegmentFactory.Create(0.0, 1.0, string.Empty,
+                Tok("[_BEG_]",  0, 0),
+                Tok("[_EOT_]",  0, 0)),
+            SegmentFactory.Create(1.0, 2.0, "hello",
+                Tok("hello", 0, 40))
+        };
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: new[] { new DiarizationSpeaker("A", 2.0) },
+            Segments: new[] { new DiarizationSegment("A", 0.0, 2.0) });
+
+        var result = service.Merge(segments, diarization, DefaultMetadata);
+
+        Assert.Single(result.Words);
+        Assert.Equal("hello", result.Words[0].Text);
+    }
+
+    [Fact]
     public void Merge_FlattenWordsAcrossSegments_PreservesStartTimeOrdering()
     {
         var service = new SpeakerMergeService();

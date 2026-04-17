@@ -69,10 +69,27 @@ public sealed class SpeakerMergeService : ISpeakerMergeService
         {
             foreach (var token in segment.Words)
             {
+                if (IsWhisperSpecialToken(token.Text))
+                    continue;
                 list.Add((token, segment.Start));
             }
         }
         return list;
+    }
+
+    // whisper.cpp emits non-text tokens (begin-of-segment, timestamps,
+    // end-of-transcript, language tags, etc.) through `whisper_token_to_str`
+    // as bracketed placeholders like `[_BEG_]`, `[_TT_832]`, or `[_EOT_]`.
+    // They must not surface in the per-word transcript; otherwise they show
+    // up verbatim inside the speaker-labeled markdown output.
+    private static bool IsWhisperSpecialToken(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var trimmed = text.AsSpan().Trim();
+        return trimmed.Length >= 3
+            && trimmed[0] == '['
+            && trimmed[1] == '_'
+            && trimmed[^1] == ']';
     }
 
     private static string AssignSpeaker(
