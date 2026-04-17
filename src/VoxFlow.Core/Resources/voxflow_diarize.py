@@ -54,6 +54,62 @@ def _write_response(payload: dict[str, Any]) -> None:
     _real_stdout.flush()
 
 
+class _NdjsonProgressHook:
+    """Adapts pyannote.audio's ProgressHook protocol onto the sidecar's
+    NDJSON stderr stream. pyannote's Pipeline.__call__ otherwise runs as a
+    single blocking call that emits nothing parseable between "loaded" and
+    "done" -- the CLI progress bar on the .NET side then freezes for the
+    entire pyannote inference (often minutes). By passing an instance of
+    this class as `hook=` to `pipeline(wav)`, we get one event per step
+    boundary plus per-chunk fractional updates, which PyannoteSidecarClient
+    already parses and SpeakerEnrichmentService maps into the Diarizing
+    progress band.
+
+    pyannote.audio 3.x calls hooks as
+    hook(step_name, step_artifact, file=None, total=None, completed=None);
+    step_name changes between steps ("segmentation", "embeddings",
+    "discrete_diarization"); total/completed are only populated during
+    chunked inference. Emission is best-effort: a broken progress stream
+    must never abort the diarization.
+    """
+
+    def __init__(self, out_stream: Any) -> None:
+        self._out = out_stream
+        self._current_step: str | None = None
+
+    def __enter__(self) -> "_NdjsonProgressHook":
+        return self
+
+    def __exit__(self, *args: Any) -> bool:
+        return False
+
+    def __call__(
+        self,
+        step_name: str,
+        step_artifact: Any = None,
+        file: Any = None,
+        total: int | None = None,
+        completed: int | None = None,
+    ) -> None:
+        if step_name != self._current_step:
+            self._current_step = step_name
+            self._emit({"stage": step_name})
+        if total is not None and completed is not None and total > 0:
+            fraction = float(completed) / float(total)
+            if fraction < 0.0:
+                fraction = 0.0
+            elif fraction > 1.0:
+                fraction = 1.0
+            self._emit({"stage": step_name, "fraction": fraction})
+
+    def _emit(self, payload: dict[str, Any]) -> None:
+        try:
+            self._out.write(json.dumps(payload) + "\n")
+            self._out.flush()
+        except Exception:
+            pass
+
+
 def _error_envelope(message: str) -> dict[str, Any]:
     return {
         "version": PROTOCOL_VERSION,
@@ -273,7 +329,8 @@ def _run_diarization(wav_path: str) -> dict[str, Any]:
         )
 
     try:
-        diarization = pipeline(wav_path)
+        with _NdjsonProgressHook(sys.stderr) as progress_hook:
+            diarization = pipeline(wav_path, hook=progress_hook)
     except Exception as exc:  # pragma: no cover - exercised in integration tests
         return _error_envelope(f"diarization failed: {exc}")
 

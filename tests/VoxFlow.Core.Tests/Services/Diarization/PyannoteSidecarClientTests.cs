@@ -183,6 +183,46 @@ public sealed class PyannoteSidecarClientTests
     }
 
     [Fact]
+    public async Task DiarizeAsync_PyannoteHookNdjsonSequence_ForwardsStageTransitionsAndFractions()
+    {
+        // Simulates the NDJSON emitted by voxflow_diarize.py's pyannote
+        // ProgressHook adapter: per-step "started" events (no fraction) plus
+        // fractional updates during chunked inference. This is the shape the
+        // CLI relies on to keep the progress bar moving during the long
+        // pipeline(wav) call that pyannote otherwise runs silently.
+        var runtime = new FakePythonRuntime();
+        var launcher = new FakeProcessLauncher();
+        launcher.SetResponse(
+            runtime.InterpreterPath,
+            exitCode: 0,
+            stdOut: """{"version":1,"status":"ok","speakers":[{"id":"A","totalDuration":1.0}],"segments":[{"speaker":"A","start":0.0,"end":1.0}]}""",
+            stdErr: """
+            {"stage":"segmentation"}
+            {"stage":"segmentation","fraction":0.25}
+            {"stage":"segmentation","fraction":1.0}
+            {"stage":"embeddings"}
+            {"stage":"embeddings","fraction":0.5}
+            {"stage":"embeddings","fraction":1.0}
+            {"stage":"discrete_diarization"}
+            """);
+
+        var reports = new List<SpeakerLabelingProgress>();
+        var progress = new ListProgress<SpeakerLabelingProgress>(reports);
+
+        var client = new PyannoteSidecarClient(runtime, launcher, ScriptPath, TimeSpan.FromSeconds(5));
+        await client.DiarizeAsync(new DiarizationRequest("/tmp/a.wav"), progress, CancellationToken.None);
+
+        Assert.Equal(7, reports.Count);
+        Assert.Equal("segmentation", reports[0].Stage);
+        Assert.Null(reports[0].Fraction);
+        Assert.Equal(0.25, reports[1].Fraction);
+        Assert.Equal("embeddings", reports[3].Stage);
+        Assert.Null(reports[3].Fraction);
+        Assert.Equal(0.5, reports[4].Fraction);
+        Assert.Equal("discrete_diarization", reports[6].Stage);
+    }
+
+    [Fact]
     public async Task DiarizeAsync_SchemaViolation_ThrowsWithSchemaViolation()
     {
         var runtime = new FakePythonRuntime();
