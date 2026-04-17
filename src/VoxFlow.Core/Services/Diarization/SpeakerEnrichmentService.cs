@@ -69,6 +69,21 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(options.TimeoutSeconds));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
         var stopwatch = Stopwatch.StartNew();
+
+        // Emit an initial Diarizing update at the lower bound of the band
+        // BEFORE calling the sidecar. Python boot + pyannote import +
+        // Pipeline.from_pretrained can take 5-30s during which the sidecar
+        // cannot emit NDJSON (stdout/stderr are captured into a StringIO to
+        // keep library chatter out of the protocol stream), so the CLI
+        // otherwise stays frozen on "Transcribing 90%" for the whole gap.
+        // Anchoring at 90% also avoids the old [85, 95] band jumping the bar
+        // backwards from the 90% end of the Transcribing band.
+        progress?.Report(new ProgressUpdate(
+            Stage: ProgressStage.Diarizing,
+            PercentComplete: 90.0,
+            Elapsed: stopwatch.Elapsed,
+            Message: "starting"));
+
         // Synchronous IProgress<T> adapter: Progress<T> would queue to
         // SynchronizationContext/ThreadPool and lose FIFO ordering between
         // reports, which matters for downstream progress bar rendering.
@@ -79,7 +94,7 @@ public sealed class SpeakerEnrichmentService : ISpeakerEnrichmentService
                 var fraction = update.Fraction ?? 0.0;
                 if (fraction < 0.0) fraction = 0.0;
                 else if (fraction > 1.0) fraction = 1.0;
-                var percent = 85.0 + (fraction * 10.0); // map [0,1] into [85,95]
+                var percent = 90.0 + (fraction * 5.0); // map [0,1] into [90,95]
                 progress.Report(new ProgressUpdate(
                     Stage: ProgressStage.Diarizing,
                     PercentComplete: percent,

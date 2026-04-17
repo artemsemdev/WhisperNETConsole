@@ -272,7 +272,23 @@ def _probe_hf_access(hf_token: str) -> str:
     )
 
 
+def _emit_progress(payload: dict[str, Any]) -> None:
+    """Best-effort NDJSON emit to the real stderr. Used for 'early' progress
+    events that happen before pyannote's ProgressHook can kick in (module
+    import, Pipeline.from_pretrained). The .NET side streams stderr per
+    line now, so these events reach the CLI in real time and keep the
+    Diarizing progress bar moving during the Python-boot / pipeline-load
+    gap that would otherwise freeze the UI for up to 30 seconds.
+    """
+    try:
+        sys.stderr.write(json.dumps(payload) + "\n")
+        sys.stderr.flush()
+    except Exception:
+        pass
+
+
 def _run_diarization(wav_path: str) -> dict[str, Any]:
+    _emit_progress({"stage": "loading pyannote"})
     try:
         from pyannote.audio import Pipeline  # type: ignore[import-not-found]
     except Exception as exc:  # pragma: no cover - exercised in integration tests
@@ -289,6 +305,8 @@ def _run_diarization(wav_path: str) -> dict[str, Any]:
         os.environ.get("HUGGING_FACE_HUB_TOKEN")
         or os.environ.get("HF_TOKEN")
     )
+
+    _emit_progress({"stage": "loading pipeline"})
 
     # pyannote.audio 3.3.x wraps from_pretrained in a bare try/except that
     # prints "Could not download ..." to stdout on any failure and returns

@@ -324,13 +324,71 @@ public sealed class SpeakerEnrichmentServiceTests
         Assert.NotNull(result.Document);
 
         var diarizingUpdates = updates.FindAll(u => u.Stage == ProgressStage.Diarizing);
-        Assert.Equal(2, diarizingUpdates.Count);
+        // Three updates: one initial "starting" emit before the sidecar runs,
+        // plus the two sidecar events. The initial emit covers the Python boot
+        // + pyannote import gap that pyannote itself cannot report through.
+        Assert.Equal(3, diarizingUpdates.Count);
         Assert.All(diarizingUpdates, u =>
         {
-            Assert.InRange(u.PercentComplete, 85.0, 95.0);
+            Assert.InRange(u.PercentComplete, 90.0, 95.0);
         });
-        // Linear mapping 0..1 → 85..95 should place 0.25 and 0.75 strictly inside the band.
-        Assert.True(diarizingUpdates[0].PercentComplete < diarizingUpdates[1].PercentComplete);
+        Assert.Equal(90.0, diarizingUpdates[0].PercentComplete);
+        // Linear mapping 0..1 → 90..95 should place 0.25 and 0.75 strictly inside the band
+        // and strictly above the 90% anchor of the initial "starting" emit.
+        Assert.True(diarizingUpdates[1].PercentComplete > diarizingUpdates[0].PercentComplete);
+        Assert.True(diarizingUpdates[2].PercentComplete > diarizingUpdates[1].PercentComplete);
+    }
+
+    [Fact]
+    public async Task EnrichAsync_Enabled_EmitsInitialDiarizingUpdate_BeforeInvokingSidecar()
+    {
+        // Regression guard: the CLI progress bar must flip to the Diarizing
+        // stage label the instant enrichment starts, not only once pyannote
+        // itself begins emitting. Otherwise the bar stays stuck on
+        // "Transcribing 90%" for 5-30s while the Python sidecar boots and
+        // pyannote.audio loads the pipeline from cache.
+        var runtime = new FakePythonRuntime();
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: new[] { new DiarizationSpeaker("A", 1.0) },
+            Segments: new[] { new DiarizationSegment("A", 0.0, 1.0) });
+
+        IProgress<SpeakerLabelingProgress>? capturedProgress = null;
+        List<ProgressStage>? stagesBeforeSidecarInvocation = null;
+        var updates = new List<ProgressUpdate>();
+        var progress = new SynchronousProgress<ProgressUpdate>(updates.Add);
+
+        var sidecar = new FakeDiarizationSidecar((_, p, _) =>
+        {
+            capturedProgress = p;
+            stagesBeforeSidecarInvocation = updates.ConvertAll(u => u.Stage);
+            return Task.FromResult(diarization);
+        });
+        var mergeService = new SpeakerMergeService();
+        var bootstrapper = new ThrowingBootstrapper();
+        var service = new SpeakerEnrichmentService(runtime, sidecar, mergeService, bootstrapper);
+
+        var segments = new[]
+        {
+            new FilteredSegment(
+                TimeSpan.Zero,
+                TimeSpan.FromSeconds(1),
+                "hi",
+                Probability: 0.9,
+                Words: new[] { new WhisperToken { Start = 0, End = 100, Text = "hi" } })
+        };
+
+        var result = await service.EnrichAsync(
+            wavPath: "/tmp/audio.wav",
+            segments: segments,
+            metadata: Metadata,
+            options: EnabledOptions(),
+            progress: progress,
+            cancellationToken: CancellationToken.None);
+
+        Assert.NotNull(result.Document);
+        Assert.NotNull(stagesBeforeSidecarInvocation);
+        Assert.Contains(ProgressStage.Diarizing, stagesBeforeSidecarInvocation);
     }
 
     private sealed class SynchronousProgress<T> : IProgress<T>
