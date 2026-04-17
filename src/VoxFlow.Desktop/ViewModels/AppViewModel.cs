@@ -214,7 +214,10 @@ public class AppViewModel : INotifyPropertyChanged
 
         try
         {
-            var request = new TranscribeFileRequest(filePath, ResultFilePath: resultFilePath);
+            var request = new TranscribeFileRequest(
+                filePath,
+                ResultFilePath: resultFilePath,
+                EnableSpeakers: SpeakerLabelingEnabled ? true : null);
             TranscriptionResult = await _transcriptionService.TranscribeFileAsync(request, progress, cts.Token);
             if (TranscriptionResult.Success)
             {

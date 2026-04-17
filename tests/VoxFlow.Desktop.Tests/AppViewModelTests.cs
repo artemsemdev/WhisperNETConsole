@@ -66,6 +66,8 @@ internal sealed class StubTranscriptionService : ITranscriptionService
     private readonly Func<TranscribeFileRequest, TranscribeFileResult>? _factory;
     private readonly Exception? _exception;
 
+    public TranscribeFileRequest? LastRequest { get; private set; }
+
     /// <summary>Creates a stub that returns a successful result.</summary>
     public StubTranscriptionService(bool success = true, string[]? warnings = null)
     {
@@ -92,6 +94,7 @@ internal sealed class StubTranscriptionService : ITranscriptionService
         IProgress<ProgressUpdate>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        LastRequest = request;
         if (_exception is not null) throw _exception;
         return Task.FromResult(_factory!(request));
     }
@@ -223,6 +226,38 @@ public sealed class AppViewModelTests
         await vm.InitializeAsync();
 
         Assert.False(vm.SpeakerLabelingEnabled);
+    }
+
+    // -----------------------------------------------------------------------
+    // P2.2 — TranscribeFileAsync forwards SpeakerLabelingEnabled to EnableSpeakers
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task TranscribeFileAsync_SpeakerLabelingEnabled_PassesEnableSpeakersTrue()
+    {
+        var stub = new StubTranscriptionService(success: true);
+        var vm = ViewModelFactory.Create(transcriptionService: stub);
+        await vm.InitializeAsync();
+        vm.SpeakerLabelingEnabled = true;
+
+        await vm.TranscribeFileAsync("/tmp/audio.wav");
+
+        Assert.NotNull(stub.LastRequest);
+        Assert.True(stub.LastRequest!.EnableSpeakers);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_SpeakerLabelingDisabled_PassesEnableSpeakersNull()
+    {
+        var stub = new StubTranscriptionService(success: true);
+        var vm = ViewModelFactory.Create(transcriptionService: stub);
+        await vm.InitializeAsync();
+        vm.SpeakerLabelingEnabled = false;
+
+        await vm.TranscribeFileAsync("/tmp/audio.wav");
+
+        Assert.NotNull(stub.LastRequest);
+        Assert.Null(stub.LastRequest!.EnableSpeakers);
     }
 
     // -----------------------------------------------------------------------
