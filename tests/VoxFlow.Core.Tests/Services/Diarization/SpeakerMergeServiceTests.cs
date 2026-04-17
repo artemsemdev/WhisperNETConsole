@@ -623,6 +623,42 @@ public sealed class SpeakerMergeServiceTests
         Assert.Equal(TimeSpan.FromSeconds(2.5) + TimeSpan.FromMilliseconds(200), result.Words[2].End);
     }
 
+    [Fact]
+    public void Merge_AbsoluteTokenTimestamps_DoNotDoubleCountSegmentOffset()
+    {
+        var service = new SpeakerMergeService();
+        var segments = new[]
+        {
+            SegmentFactory.Create(0.0, 1.0, "hello",
+                TokRaw(" hello", 20, 40)),
+            SegmentFactory.Create(10.0, 11.0, "again",
+                // Production whisper.net emits token timestamps in absolute
+                // 10 ms units. If Merge adds segment.Start a second time, this
+                // word lands at 20.1s instead of 10.1s and gets attributed to
+                // the wrong diarization speaker.
+                TokRaw(" again", 1010, 1040))
+        };
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: new[]
+            {
+                new DiarizationSpeaker("SPK1", 10.5),
+                new DiarizationSpeaker("SPK2", 1.5)
+            },
+            Segments: new[]
+            {
+                new DiarizationSegment("SPK1", 0.0, 10.5),
+                new DiarizationSegment("SPK2", 10.5, 12.0)
+            });
+
+        var result = service.Merge(segments, diarization, DefaultMetadata);
+
+        Assert.Equal(2, result.Words.Count);
+        Assert.Equal(TimeSpan.FromMilliseconds(10100), result.Words[1].Start);
+        Assert.Equal(TimeSpan.FromMilliseconds(10400), result.Words[1].End);
+        Assert.Equal("A", result.Words[1].SpeakerId);
+    }
+
     private static IReadOnlyList<FilteredSegment> LoadSegmentsFixture(string filename)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "fixtures", "sidecar", "words", filename);
