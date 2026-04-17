@@ -188,7 +188,9 @@ Runtime boundaries — everything runs locally on the user's machine:
 **Decision:** Adopt a local post-ASR speaker-labeling architecture with four stages:
 
 1. `Whisper.net` remains the system of record for transcription, language selection, and **word-level timestamps**. The existing `WhisperToken[]` data in `SegmentData` is preserved through filtering instead of being discarded.
-2. A local Python sidecar performs **diarization only** using `pyannote/speaker-diarization-community-1`. It receives the normalized WAV file and returns speaker time segments (who spoke when). No text processing or word alignment happens in the sidecar — it is purely acoustic.
+2. A local Python sidecar performs **diarization only** using `pyannote/speaker-diarization-3.1`. It receives the normalized WAV file and returns speaker time segments (who spoke when). No text processing or word alignment happens in the sidecar — it is purely acoustic.
+
+   > **Model choice note (2026-04-16):** Phase 1 uses `pyannote/speaker-diarization-3.1` instead of the newer `pyannote/speaker-diarization-community-1`. The community-1 model requires `pyannote.audio >= 4.0`, which in turn requires `torch >= 2.8`. PyTorch dropped x86_64 macOS wheels starting with 2.3, so community-1 is fundamentally unreachable on Intel Mac hardware today. Model `3.1` is the last widely-compatible pinned pipeline (`pyannote.audio 3.3.2`, `torch >= 2.2`, works on Intel Mac, Apple Silicon, and Linux) and is adopted as the Phase 1 default. A later phase will reconsider community-1 once either (a) Intel Mac is formally dropped from support, or (b) pyannote ships a 3.x-compatible backport.
 3. VoxFlow merges Whisper word tokens with diarization speaker segments in .NET, assigns a speaker to each word by time overlap, and regroups words into speaker-labeled transcript turns.
 4. Desktop adds a lightweight review workflow that lets the user rename auto-detected speakers (`Speaker A`, `Speaker B`, `Speaker C`, ...) and inspect the enriched transcript before export or copy.
 

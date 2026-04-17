@@ -30,7 +30,7 @@ public sealed class ManagedVenvRuntime : IPythonRuntime
             return Task.FromResult(PythonRuntimeStatus.Ready(_paths.InterpreterPath, version: "managed"));
         }
 
-        return Task.FromResult(PythonRuntimeStatus.NotReady(
+        return Task.FromResult(PythonRuntimeStatus.NotReadyBootstrapable(
             $"Managed venv not yet created at '{_paths.Root}'. Call CreateVenvAsync to bootstrap."));
     }
 

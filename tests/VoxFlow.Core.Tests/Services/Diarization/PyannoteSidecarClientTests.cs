@@ -183,6 +183,103 @@ public sealed class PyannoteSidecarClientTests
     }
 
     [Fact]
+    public async Task DiarizeAsync_PyannoteHookNdjsonSequence_ForwardsStageTransitionsAndFractions()
+    {
+        // Simulates the NDJSON emitted by voxflow_diarize.py's pyannote
+        // ProgressHook adapter: per-step "started" events (no fraction) plus
+        // fractional updates during chunked inference. This is the shape the
+        // CLI relies on to keep the progress bar moving during the long
+        // pipeline(wav) call that pyannote otherwise runs silently.
+        var runtime = new FakePythonRuntime();
+        var launcher = new FakeProcessLauncher();
+        launcher.SetResponse(
+            runtime.InterpreterPath,
+            exitCode: 0,
+            stdOut: """{"version":1,"status":"ok","speakers":[{"id":"A","totalDuration":1.0}],"segments":[{"speaker":"A","start":0.0,"end":1.0}]}""",
+            stdErr: """
+            {"stage":"segmentation"}
+            {"stage":"segmentation","fraction":0.25}
+            {"stage":"segmentation","fraction":1.0}
+            {"stage":"embeddings"}
+            {"stage":"embeddings","fraction":0.5}
+            {"stage":"embeddings","fraction":1.0}
+            {"stage":"discrete_diarization"}
+            """);
+
+        var reports = new List<SpeakerLabelingProgress>();
+        var progress = new ListProgress<SpeakerLabelingProgress>(reports);
+
+        var client = new PyannoteSidecarClient(runtime, launcher, ScriptPath, TimeSpan.FromSeconds(5));
+        await client.DiarizeAsync(new DiarizationRequest("/tmp/a.wav"), progress, CancellationToken.None);
+
+        Assert.Equal(7, reports.Count);
+        Assert.Equal("segmentation", reports[0].Stage);
+        Assert.Null(reports[0].Fraction);
+        Assert.Equal(0.25, reports[1].Fraction);
+        Assert.Equal("embeddings", reports[3].Stage);
+        Assert.Null(reports[3].Fraction);
+        Assert.Equal(0.5, reports[4].Fraction);
+        Assert.Equal("discrete_diarization", reports[6].Stage);
+    }
+
+    [Fact]
+    public async Task DiarizeAsync_ProgressStreamsPerLine_BeforeProcessExits()
+    {
+        // Proves per-line streaming: progress events must be reported while the
+        // simulated process is still running. The previous implementation
+        // buffered stderr via ReadToEndAsync and only parsed it after the
+        // process exited -- the CLI bar then froze for the entire pyannote run.
+        var runtime = new FakePythonRuntime();
+        var launcher = new FakeProcessLauncher();
+        var processCanComplete = new TaskCompletionSource();
+        var secondProgressReported = new TaskCompletionSource();
+
+        launcher.SetStreamingResponse(runtime.InterpreterPath, async (emitStdErrLine, ct) =>
+        {
+            emitStdErrLine("""{"stage":"segmentation"}""");
+            emitStdErrLine("""{"stage":"segmentation","fraction":0.5}""");
+            await processCanComplete.Task.ConfigureAwait(false);
+            return new ProcessExecutionResult(
+                0,
+                """{"version":1,"status":"ok","speakers":[{"id":"A","totalDuration":1.0}],"segments":[{"speaker":"A","start":0.0,"end":1.0}]}""",
+                string.Empty);
+        });
+
+        var reports = new List<SpeakerLabelingProgress>();
+        var progress = new DelegateProgress<SpeakerLabelingProgress>(p =>
+        {
+            lock (reports)
+            {
+                reports.Add(p);
+                if (reports.Count == 2) secondProgressReported.TrySetResult();
+            }
+        });
+
+        var client = new PyannoteSidecarClient(runtime, launcher, ScriptPath, TimeSpan.FromSeconds(5));
+        var diarizeTask = client.DiarizeAsync(
+            new DiarizationRequest("/tmp/a.wav"), progress, CancellationToken.None);
+
+        var delivered = await Task.WhenAny(secondProgressReported.Task, Task.Delay(2000));
+        Assert.Same(secondProgressReported.Task, delivered);
+        Assert.False(diarizeTask.IsCompleted, "progress must arrive before the process completes");
+
+        processCanComplete.SetResult();
+        await diarizeTask;
+
+        Assert.Equal(2, reports.Count);
+        Assert.Equal("segmentation", reports[0].Stage);
+        Assert.Null(reports[0].Fraction);
+        Assert.Equal(0.5, reports[1].Fraction);
+    }
+
+    private sealed class DelegateProgress<T> : IProgress<T>
+    {
+        private readonly Action<T> _handler;
+        public DelegateProgress(Action<T> handler) => _handler = handler;
+        public void Report(T value) => _handler(value);
+    }
+
+    [Fact]
     public async Task DiarizeAsync_SchemaViolation_ThrowsWithSchemaViolation()
     {
         var runtime = new FakePythonRuntime();

@@ -112,7 +112,7 @@ New nested section **inside** the existing `transcription` root of `appsettings.
       "enabled": false,
       "timeoutSeconds": 600,
       "pythonRuntimeMode": "ManagedVenv",
-      "modelId": "pyannote/speaker-diarization-community-1"
+      "modelId": "pyannote/speaker-diarization-3.1"
     }
   }
 }

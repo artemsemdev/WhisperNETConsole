@@ -56,7 +56,9 @@ public sealed class BatchTranscriptionServiceTests
             new NoOpWavAudioLoader(),
             new NoOpLanguageSelectionService(),
             new NoOpOutputWriter(),
-            new RecordingBatchSummaryWriter());
+            new RecordingBatchSummaryWriter(),
+            new RecordingSpeakerEnrichmentService(),
+            new RecordingVoxflowArtifactWriter());
 
         var result = await service.TranscribeBatchAsync(
             new BatchTranscribeRequest(inputDir, outputDir, MaxFiles: 1, ConfigurationPath: settingsPath));
@@ -64,6 +66,151 @@ public sealed class BatchTranscriptionServiceTests
         Assert.Equal(1, discovery.RecordedMaxFiles);
         Assert.Single(result.Results);
         Assert.Equal("Skipped", result.Results[0].Status);
+    }
+
+    [Fact]
+    public async Task TranscribeBatchAsync_SpeakerLabelingEnabled_InvokesEnrichmentAndWritesSidecar()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        var outputDir = Path.Combine(directory.Path, "output");
+        var tempDir = Path.Combine(directory.Path, "temp");
+        Directory.CreateDirectory(inputDir);
+        Directory.CreateDirectory(outputDir);
+        Directory.CreateDirectory(tempDir);
+
+        var inputPath = Path.Combine(inputDir, "demo.m4a");
+        var outputPath = Path.Combine(outputDir, "demo.txt");
+        var tempWavPath = Path.Combine(tempDir, "demo.wav");
+        File.WriteAllText(inputPath, "stub");
+
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: string.Empty,
+            wavFilePath: string.Empty,
+            resultFilePath: string.Empty,
+            modelFilePath: Path.Combine(directory.Path, "model.bin"),
+            ffmpegExecutablePath: "ffmpeg",
+            processingMode: "batch",
+            batch: new
+            {
+                inputDirectory = inputDir,
+                outputDirectory = outputDir,
+                tempDirectory = tempDir,
+                filePattern = "*.m4a",
+                summaryFilePath = Path.Combine(outputDir, "summary.txt")
+            },
+            speakerLabeling: new
+            {
+                enabled = true,
+                modelId = "pyannote/test",
+                pythonRuntimeMode = "SystemPython",
+                timeoutSeconds = 60
+            });
+
+        var discovery = new RecordingFileDiscoveryService(
+            [
+                new DiscoveredFile(
+                    inputPath,
+                    outputPath,
+                    tempWavPath,
+                    DiscoveryStatus.Ready,
+                    null)
+            ]);
+
+        var recordingEnrichment = new RecordingSpeakerEnrichmentService();
+        var recordingArtifactWriter = new RecordingVoxflowArtifactWriter();
+
+        var service = new BatchTranscriptionService(
+            new StubBatchConfigurationService(settingsPath),
+            new StubBatchValidationService(),
+            discovery,
+            new SuccessfulAudioConversionService(),
+            new NoOpModelService(),
+            new SuccessfulWavAudioLoader(),
+            new ReportingLanguageSelectionService(),
+            new RecordingOutputWriter(),
+            new RecordingBatchSummaryWriter(),
+            recordingEnrichment,
+            recordingArtifactWriter);
+
+        var result = await service.TranscribeBatchAsync(
+            new BatchTranscribeRequest(inputDir, outputDir, ConfigurationPath: settingsPath));
+
+        Assert.Single(result.Results);
+        Assert.Equal("Success", result.Results[0].Status);
+        Assert.Equal(1, recordingEnrichment.CallCount);
+        Assert.Equal(tempWavPath, recordingEnrichment.LastWavPath);
+        Assert.Equal(1, recordingArtifactWriter.CallCount);
+        Assert.Equal(outputPath, recordingArtifactWriter.LastResultPath);
+    }
+
+    [Fact]
+    public async Task TranscribeBatchAsync_SpeakerLabelingDisabled_DoesNotInvokeEnrichment()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        var outputDir = Path.Combine(directory.Path, "output");
+        var tempDir = Path.Combine(directory.Path, "temp");
+        Directory.CreateDirectory(inputDir);
+        Directory.CreateDirectory(outputDir);
+        Directory.CreateDirectory(tempDir);
+
+        var inputPath = Path.Combine(inputDir, "demo.m4a");
+        var outputPath = Path.Combine(outputDir, "demo.txt");
+        var tempWavPath = Path.Combine(tempDir, "demo.wav");
+        File.WriteAllText(inputPath, "stub");
+
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: string.Empty,
+            wavFilePath: string.Empty,
+            resultFilePath: string.Empty,
+            modelFilePath: Path.Combine(directory.Path, "model.bin"),
+            ffmpegExecutablePath: "ffmpeg",
+            processingMode: "batch",
+            batch: new
+            {
+                inputDirectory = inputDir,
+                outputDirectory = outputDir,
+                tempDirectory = tempDir,
+                filePattern = "*.m4a",
+                summaryFilePath = Path.Combine(outputDir, "summary.txt")
+            });
+
+        var discovery = new RecordingFileDiscoveryService(
+            [
+                new DiscoveredFile(
+                    inputPath,
+                    outputPath,
+                    tempWavPath,
+                    DiscoveryStatus.Ready,
+                    null)
+            ]);
+
+        var recordingEnrichment = new RecordingSpeakerEnrichmentService();
+        var recordingArtifactWriter = new RecordingVoxflowArtifactWriter();
+
+        var service = new BatchTranscriptionService(
+            new StubBatchConfigurationService(settingsPath),
+            new StubBatchValidationService(),
+            discovery,
+            new SuccessfulAudioConversionService(),
+            new NoOpModelService(),
+            new SuccessfulWavAudioLoader(),
+            new ReportingLanguageSelectionService(),
+            new RecordingOutputWriter(),
+            new RecordingBatchSummaryWriter(),
+            recordingEnrichment,
+            recordingArtifactWriter);
+
+        var result = await service.TranscribeBatchAsync(
+            new BatchTranscribeRequest(inputDir, outputDir, ConfigurationPath: settingsPath));
+
+        Assert.Single(result.Results);
+        Assert.Equal("Success", result.Results[0].Status);
+        Assert.Equal(0, recordingEnrichment.CallCount);
+        Assert.Equal(0, recordingArtifactWriter.CallCount);
     }
 
     [Fact]
@@ -120,7 +267,9 @@ public sealed class BatchTranscriptionServiceTests
             new SuccessfulWavAudioLoader(),
             new ReportingLanguageSelectionService(),
             new RecordingOutputWriter(),
-            new RecordingBatchSummaryWriter());
+            new RecordingBatchSummaryWriter(),
+            new RecordingSpeakerEnrichmentService(),
+            new RecordingVoxflowArtifactWriter());
 
         var result = await service.TranscribeBatchAsync(
             new BatchTranscribeRequest(inputDir, outputDir, ConfigurationPath: settingsPath),
@@ -329,6 +478,51 @@ public sealed class BatchTranscriptionServiceTests
             IReadOnlyList<FileProcessingResult> results,
             CancellationToken cancellationToken = default)
         {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingSpeakerEnrichmentService : ISpeakerEnrichmentService
+    {
+        public int CallCount { get; private set; }
+        public string? LastWavPath { get; private set; }
+
+        public Task<SpeakerEnrichmentResult> EnrichAsync(
+            string wavPath,
+            IReadOnlyList<FilteredSegment> segments,
+            TranscriptMetadata metadata,
+            SpeakerLabelingOptions options,
+            IProgress<ProgressUpdate>? progress,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastWavPath = wavPath;
+            var document = new TranscriptDocument(
+                Speakers: new[] { new SpeakerInfo("A", "Speaker A", TimeSpan.FromSeconds(1)) },
+                Words: Array.Empty<TranscriptWord>(),
+                Turns: new[]
+                {
+                    new SpeakerTurn("A", TimeSpan.Zero, TimeSpan.FromSeconds(1),
+                        Array.Empty<TranscriptWord>())
+                },
+                Metadata: metadata);
+            return Task.FromResult(new SpeakerEnrichmentResult(
+                document, Array.Empty<string>(), RuntimeBootstrapped: false));
+        }
+    }
+
+    private sealed class RecordingVoxflowArtifactWriter : IVoxflowTranscriptArtifactWriter
+    {
+        public int CallCount { get; private set; }
+        public string? LastResultPath { get; private set; }
+
+        public Task WriteAsync(
+            string resultPath,
+            TranscriptDocument document,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastResultPath = resultPath;
             return Task.CompletedTask;
         }
     }

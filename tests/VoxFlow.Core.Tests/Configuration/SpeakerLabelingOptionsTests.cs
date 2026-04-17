@@ -14,7 +14,7 @@ public sealed class SpeakerLabelingOptionsTests
         Assert.False(disabled.Enabled);
         Assert.Equal(600, disabled.TimeoutSeconds);
         Assert.Equal(PythonRuntimeMode.ManagedVenv, disabled.RuntimeMode);
-        Assert.Equal("pyannote/speaker-diarization-community-1", disabled.ModelId);
+        Assert.Equal("pyannote/speaker-diarization-3.1", disabled.ModelId);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class SpeakerLabelingOptionsTests
             Enabled: true,
             TimeoutSeconds: -1,
             RuntimeMode: PythonRuntimeMode.ManagedVenv,
-            ModelId: "pyannote/speaker-diarization-community-1"));
+            ModelId: "pyannote/speaker-diarization-3.1"));
 
         Assert.Contains("TimeoutSeconds", exception.Message, StringComparison.Ordinal);
     }
@@ -51,7 +51,7 @@ public sealed class SpeakerLabelingOptionsTests
             Enabled: true,
             TimeoutSeconds: 0,
             RuntimeMode: PythonRuntimeMode.ManagedVenv,
-            ModelId: "pyannote/speaker-diarization-community-1"));
+            ModelId: "pyannote/speaker-diarization-3.1"));
     }
 
     [Fact]

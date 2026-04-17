@@ -10,4 +10,5 @@ public sealed record TranscriptOutputContext(
     string? DetectedLanguage = null,
     int AcceptedSegmentCount = 0,
     int SkippedSegmentCount = 0,
-    IReadOnlyList<string>? Warnings = null);
+    IReadOnlyList<string>? Warnings = null,
+    TranscriptDocument? SpeakerTranscript = null);

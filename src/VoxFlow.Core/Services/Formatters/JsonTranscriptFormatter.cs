@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
 
@@ -32,7 +33,8 @@ internal sealed class JsonTranscriptFormatter : ITranscriptFormatter
                 End = FormatTimestamp(s.End),
                 Text = s.Text
             }).ToArray(),
-            Transcript = BuildPlainTranscript(segments)
+            Transcript = BuildPlainTranscript(segments),
+            SpeakerTranscript = context.SpeakerTranscript
         };
 
         return JsonSerializer.Serialize(output, SerializerOptions);
@@ -64,6 +66,9 @@ internal sealed class JsonTranscriptFormatter : ITranscriptFormatter
         public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
         public JsonTranscriptSegment[] Segments { get; set; } = Array.Empty<JsonTranscriptSegment>();
         public string Transcript { get; set; } = string.Empty;
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public TranscriptDocument? SpeakerTranscript { get; set; }
     }
 
     private sealed class JsonTranscriptSegment

@@ -243,7 +243,8 @@ public sealed class TranscriptionOptions
             configuration.CheckModelDirectory,
             configuration.CheckModelLoadability,
             configuration.CheckLanguageSupport,
-            configuration.CheckWhisperRuntime);
+            configuration.CheckWhisperRuntime,
+            configuration.CheckSpeakerLabelingRuntime);
     }
 
     /// <summary>
@@ -492,7 +493,8 @@ public sealed record StartupValidationOptions(
     bool CheckModelDirectory,
     bool CheckModelLoadability,
     bool CheckLanguageSupport,
-    bool CheckWhisperRuntime);
+    bool CheckWhisperRuntime,
+    bool CheckSpeakerLabelingRuntime = true);
 
 /// <summary>
 /// Represents raw startup validation settings loaded from JSON.
@@ -510,6 +512,7 @@ public sealed class StartupValidationConfiguration
     public bool CheckModelLoadability { get; set; }
     public bool CheckLanguageSupport { get; set; }
     public bool CheckWhisperRuntime { get; set; }
+    public bool CheckSpeakerLabelingRuntime { get; set; } = true;
 }
 
 /// <summary>

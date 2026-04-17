@@ -21,6 +21,8 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
     private readonly ILanguageSelectionService _languageSelection;
     private readonly IOutputWriter _outputWriter;
     private readonly IBatchSummaryWriter _summaryWriter;
+    private readonly ISpeakerEnrichmentService _speakerEnrichment;
+    private readonly IVoxflowTranscriptArtifactWriter _artifactWriter;
 
     public BatchTranscriptionService(
         IConfigurationService configService,
@@ -31,7 +33,9 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
         IWavAudioLoader wavLoader,
         ILanguageSelectionService languageSelection,
         IOutputWriter outputWriter,
-        IBatchSummaryWriter summaryWriter)
+        IBatchSummaryWriter summaryWriter,
+        ISpeakerEnrichmentService speakerEnrichment,
+        IVoxflowTranscriptArtifactWriter artifactWriter)
     {
         ArgumentNullException.ThrowIfNull(configService);
         ArgumentNullException.ThrowIfNull(validationService);
@@ -42,6 +46,8 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
         ArgumentNullException.ThrowIfNull(languageSelection);
         ArgumentNullException.ThrowIfNull(outputWriter);
         ArgumentNullException.ThrowIfNull(summaryWriter);
+        ArgumentNullException.ThrowIfNull(speakerEnrichment);
+        ArgumentNullException.ThrowIfNull(artifactWriter);
 
         _configService = configService;
         _validationService = validationService;
@@ -52,6 +58,8 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
         _languageSelection = languageSelection;
         _outputWriter = outputWriter;
         _summaryWriter = summaryWriter;
+        _speakerEnrichment = speakerEnrichment;
+        _artifactWriter = artifactWriter;
     }
 
     public async Task<BatchTranscribeResult> TranscribeBatchAsync(
@@ -126,6 +134,41 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
                     options,
                     fileProgress,
                     cancellationToken);
+
+                // Speaker enrichment (optional) — matches TranscriptionService single-file path.
+                TranscriptDocument? speakerTranscript = null;
+                var fileWarnings = new List<string>();
+                if (options.SpeakerLabeling.Enabled)
+                {
+                    try
+                    {
+                        var metadata = new TranscriptMetadata(
+                            SchemaVersion: 1,
+                            DiarizationModel: options.SpeakerLabeling.ModelId,
+                            SidecarVersion: 1);
+                        var enrichmentResult = await _speakerEnrichment.EnrichAsync(
+                            file.TempWavPath,
+                            selection.AcceptedSegments,
+                            metadata,
+                            options.SpeakerLabeling,
+                            fileProgress,
+                            cancellationToken);
+                        speakerTranscript = enrichmentResult.Document;
+                        if (enrichmentResult.Warnings.Count > 0)
+                        {
+                            fileWarnings.AddRange(enrichmentResult.Warnings);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        fileWarnings.Add($"speaker-labeling: internal error: {ex.Message}");
+                    }
+                }
+
                 ReportBatchFileProgress(
                     progress,
                     totalStopwatch,
@@ -141,9 +184,16 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
                     Format: options.ResultFormat,
                     DetectedLanguage: detectedLanguage,
                     AcceptedSegmentCount: selection.AcceptedSegments.Count,
-                    SkippedSegmentCount: selection.SkippedSegments.Count);
+                    SkippedSegmentCount: selection.SkippedSegments.Count,
+                    Warnings: fileWarnings,
+                    SpeakerTranscript: speakerTranscript);
 
                 await _outputWriter.WriteAsync(file.OutputPath, selection.AcceptedSegments, outputContext, cancellationToken);
+
+                if (speakerTranscript is not null)
+                {
+                    await _artifactWriter.WriteAsync(file.OutputPath, speakerTranscript, cancellationToken);
+                }
 
                 fileStopwatch.Stop();
                 results.Add(new BatchFileResult(

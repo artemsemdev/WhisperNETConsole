@@ -14,6 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="VoxFlow.Cli.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\VoxFlow.Core\VoxFlow.Core.csproj" />
   </ItemGroup>
 
@@ -21,6 +25,16 @@
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Speaker-labeling sidecar script + pinned Python requirements bundled
+      next to the CLI binary so CompositionSpeakerEnrichmentService and
+      DefaultVenvPaths can locate them via AppContext.BaseDirectory.
+    -->
+    <None Include="..\VoxFlow.Core\Resources\voxflow_diarize.py" Link="python\voxflow_diarize.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\VoxFlow.Core\Resources\python-requirements.txt" Link="python\python-requirements.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

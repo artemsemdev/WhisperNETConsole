@@ -25,7 +25,16 @@ internal sealed class SrtTranscriptFormatter : ITranscriptFormatter
             builder.Append(FormatSrtTimestamp(segment.Start));
             builder.Append(" --> ");
             builder.AppendLine(FormatSrtTimestamp(segment.End));
-            builder.AppendLine(segment.Text.Trim());
+
+            var text = segment.Text.Trim();
+            if (context.SpeakerTranscript is { } document
+                && SpeakerSegmentMapper.ResolveSpeakerId(segment, document) is { } speakerId)
+            {
+                builder.Append("Speaker ");
+                builder.Append(speakerId);
+                builder.Append(": ");
+            }
+            builder.AppendLine(text);
         }
 
         return builder.ToString();

@@ -31,6 +31,7 @@ public sealed class SidecarScriptContractTests
     [SkippableFact]
     public async Task RunAgainstSingleSpeakerWav_ReturnsOkResponse_WithOneSpeaker()
     {
+        Skip.IfNot(RequiresPythonOptedIn(), OptInSkipReason);
         Skip.IfNot(Python3Available(), "python3 not available on PATH");
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
         Skip.IfNot(File.Exists(SingleSpeakerFixturePath),
@@ -50,6 +51,7 @@ public sealed class SidecarScriptContractTests
     [SkippableFact]
     public async Task RunAgainstTwoSpeakerWav_ReturnsOkResponse_WithTwoSpeakers()
     {
+        Skip.IfNot(RequiresPythonOptedIn(), OptInSkipReason);
         Skip.IfNot(Python3Available(), "python3 not available on PATH");
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
         Skip.IfNot(File.Exists(TwoSpeakerFixturePath),
@@ -68,6 +70,7 @@ public sealed class SidecarScriptContractTests
     [SkippableFact]
     public async Task RunAgainstMissingWav_ReturnsErrorResponse()
     {
+        Skip.IfNot(RequiresPythonOptedIn(), OptInSkipReason);
         Skip.IfNot(Python3Available(), "python3 not available on PATH");
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
 
@@ -86,6 +89,7 @@ public sealed class SidecarScriptContractTests
     [SkippableFact]
     public async Task RunWithMalformedJsonRequest_ReturnsErrorResponse_AndExitsNonZero()
     {
+        Skip.IfNot(RequiresPythonOptedIn(), OptInSkipReason);
         Skip.IfNot(Python3Available(), "python3 not available on PATH");
         Skip.IfNot(File.Exists(ScriptPath), $"sidecar script missing at {ScriptPath}");
 
@@ -125,6 +129,16 @@ public sealed class SidecarScriptContractTests
         var stdErr = await stdErrTask;
         return (process.ExitCode, stdOut, stdErr);
     }
+
+    private const string OptInEnvironmentVariable = "VOXFLOW_RUN_REQUIRES_PYTHON_TESTS";
+    private const string OptInSkipReason =
+        "Set VOXFLOW_RUN_REQUIRES_PYTHON_TESTS=1 to run tests that require a real python3 with pyannote installed.";
+
+    private static bool RequiresPythonOptedIn()
+        => string.Equals(
+            Environment.GetEnvironmentVariable(OptInEnvironmentVariable),
+            "1",
+            StringComparison.Ordinal);
 
     private static readonly Version MinimumPythonVersion = new(3, 10);
 
