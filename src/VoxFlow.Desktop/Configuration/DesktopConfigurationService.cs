@@ -7,22 +7,39 @@ using VoxFlow.Desktop.Services;
 
 namespace VoxFlow.Desktop.Configuration;
 
-public sealed class DesktopConfigurationService : IConfigurationService
+public class DesktopConfigurationService : IConfigurationService
 {
-    private static readonly string AppSupportDir =
+    private static readonly string DefaultAppSupportDir =
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             "Library",
             "Application Support",
             "VoxFlow");
 
-    private static readonly string UserConfigPath =
-        Path.Combine(AppSupportDir, "appsettings.json");
-
-    private static readonly string DocumentsDir =
+    private static readonly string DefaultDocumentsDir =
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "VoxFlow");
+
+    private readonly string _appSupportDir;
+    private readonly string _documentsDir;
+    private readonly string _userConfigPath;
+
+    public DesktopConfigurationService()
+        : this(DefaultAppSupportDir, DefaultDocumentsDir)
+    {
+    }
+
+    // Overrideable for tests so the user config file lands in a temp directory
+    // instead of the real ~/Library/Application Support/VoxFlow location.
+    public DesktopConfigurationService(string appSupportDir, string documentsDir)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appSupportDir);
+        ArgumentException.ThrowIfNullOrWhiteSpace(documentsDir);
+        _appSupportDir = appSupportDir;
+        _documentsDir = documentsDir;
+        _userConfigPath = Path.Combine(appSupportDir, "appsettings.json");
+    }
 
     public Task<TranscriptionOptions> LoadAsync(string? configurationPath = null)
     {
@@ -54,12 +71,12 @@ public sealed class DesktopConfigurationService : IConfigurationService
         Action<JsonObject>? mutateTranscription = null,
         bool applyDesktopRuntimeOverrides = false)
     {
-        Directory.CreateDirectory(AppSupportDir);
+        Directory.CreateDirectory(_appSupportDir);
 
         var bundledPath = ResolveBundledConfigPath(AppContext.BaseDirectory);
         // Materialize a merged temp file so the core configuration pipeline can stay file-based across CLI, desktop, and tests.
-        var merged = MergeJsonFiles(bundledPath, UserConfigPath, configurationPath);
-        var normalized = NormalizeDesktopConfiguration(merged);
+        var merged = MergeJsonFiles(bundledPath, _userConfigPath, configurationPath);
+        var normalized = NormalizeDesktopConfiguration(merged, _appSupportDir, _documentsDir);
         var root = JsonNode.Parse(normalized)?.AsObject()
             ?? throw new InvalidOperationException("Merged desktop configuration is not a JSON object.");
         var transcription = root["transcription"]?.AsObject()
@@ -98,13 +115,77 @@ public sealed class DesktopConfigurationService : IConfigurationService
             .ToList();
     }
 
-    public async Task SaveUserOverridesAsync(Dictionary<string, object> overrides)
+    public virtual async Task SaveUserOverridesAsync(Dictionary<string, object> overrides)
     {
-        Directory.CreateDirectory(AppSupportDir);
-        var json = JsonSerializer.Serialize(
-            new { transcription = overrides },
-            new JsonSerializerOptions { WriteIndented = true });
-        await File.WriteAllTextAsync(UserConfigPath, json);
+        Directory.CreateDirectory(_appSupportDir);
+
+        // Read existing user overrides (if any), deep-merge the new entries
+        // under the transcription section, and write back. The merge keeps
+        // previously saved keys (e.g. resultFormat) alive when a different
+        // setting is toggled, instead of stamping a fresh file each time.
+        var root = JsonNode.Parse(
+            File.Exists(_userConfigPath)
+                ? await File.ReadAllTextAsync(_userConfigPath)
+                : "{}")?.AsObject()
+            ?? new JsonObject();
+
+        if (root["transcription"] is not JsonObject transcription)
+        {
+            transcription = new JsonObject();
+            root["transcription"] = transcription;
+        }
+
+        foreach (var kvp in overrides)
+        {
+            MergeOverrideValue(transcription, kvp.Key, kvp.Value);
+        }
+
+        await File.WriteAllTextAsync(
+            _userConfigPath,
+            root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static void MergeOverrideValue(JsonObject target, string key, object? value)
+    {
+        if (value is null)
+        {
+            target[key] = null;
+            return;
+        }
+
+        if (value is IDictionary<string, object?> nullableDict)
+        {
+            MergeNestedDictionary(target, key, nullableDict);
+            return;
+        }
+
+        if (value is IDictionary<string, object> nestedDict)
+        {
+            MergeNestedDictionary(
+                target,
+                key,
+                nestedDict.ToDictionary(kvp => kvp.Key, kvp => (object?)kvp.Value));
+            return;
+        }
+
+        target[key] = JsonNode.Parse(JsonSerializer.Serialize(value));
+    }
+
+    private static void MergeNestedDictionary(
+        JsonObject target,
+        string key,
+        IDictionary<string, object?> source)
+    {
+        if (target[key] is not JsonObject existing)
+        {
+            existing = new JsonObject();
+            target[key] = existing;
+        }
+
+        foreach (var inner in source)
+        {
+            MergeOverrideValue(existing, inner.Key, inner.Value);
+        }
     }
 
     internal static string ResolveBundledConfigPath(string baseDirectory)
@@ -125,11 +206,6 @@ public sealed class DesktopConfigurationService : IConfigurationService
         }
 
         return candidates[0];
-    }
-
-    internal static string NormalizeDesktopConfiguration(string json)
-    {
-        return NormalizeDesktopConfiguration(json, AppSupportDir, DocumentsDir);
     }
 
     internal static string NormalizeDesktopConfiguration(string json, string appSupportDir, string documentsDir)
