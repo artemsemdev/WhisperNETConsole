@@ -25,6 +25,7 @@ public class AppViewModel : INotifyPropertyChanged
     private string? _lastFilePath;
     private CancellationTokenSource? _cts;
     private ResultFormat _selectedResultFormat = ResultFormat.Txt;
+    private bool _speakerLabelingEnabled;
 
     public AppViewModel(
         ITranscriptionService transcriptionService,
@@ -50,6 +51,20 @@ public class AppViewModel : INotifyPropertyChanged
         {
             if (_selectedResultFormat == value) return;
             _selectedResultFormat = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Whether the local speaker-labeling enrichment pipeline is enabled for the next run.
+    /// </summary>
+    public bool SpeakerLabelingEnabled
+    {
+        get => _speakerLabelingEnabled;
+        set
+        {
+            if (_speakerLabelingEnabled == value) return;
+            _speakerLabelingEnabled = value;
             OnPropertyChanged();
         }
     }
@@ -148,7 +163,13 @@ public class AppViewModel : INotifyPropertyChanged
     public async Task InitializeAsync()
     {
         var options = await _configService.LoadAsync();
-        SelectedResultFormat = options.ResultFormat;
+        // Seed backing fields directly so the single re-render triggered by
+        // ValidationResult/CurrentState below sees the final values. Firing
+        // OnPropertyChanged here would schedule an extra render cycle before
+        // validation completes, which races with components that observe
+        // HasWarnings / HasBlockingValidationErrors on first render.
+        _selectedResultFormat = options.ResultFormat;
+        _speakerLabelingEnabled = options.SpeakerLabeling.Enabled;
         var result = await _validationService.ValidateAsync(options);
         ValidationResult = result;
         CurrentState = AppState.Ready;

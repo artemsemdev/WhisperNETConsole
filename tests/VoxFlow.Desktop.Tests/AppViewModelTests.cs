@@ -190,6 +190,42 @@ public sealed class AppViewModelTests
     }
 
     // -----------------------------------------------------------------------
+    // P2.1 — SpeakerLabelingEnabled initializes from options
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task InitializeAsync_SpeakerLabelingEnabledInOptions_SetsViewModelFlagTrue()
+    {
+        var settingsPath = ViewModelFactory.ResolveRootSettingsPath();
+        using var configService = new StubConfigurationServiceWithSpeakerLabeling(
+            settingsPath, speakerLabelingEnabled: true);
+        var vm = new AppViewModel(
+            new StubTranscriptionService(success: true),
+            new StubValidationService(true),
+            configService);
+
+        await vm.InitializeAsync();
+
+        Assert.True(vm.SpeakerLabelingEnabled);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_SpeakerLabelingDisabledInOptions_SetsViewModelFlagFalse()
+    {
+        var settingsPath = ViewModelFactory.ResolveRootSettingsPath();
+        using var configService = new StubConfigurationServiceWithSpeakerLabeling(
+            settingsPath, speakerLabelingEnabled: false);
+        var vm = new AppViewModel(
+            new StubTranscriptionService(success: true),
+            new StubValidationService(true),
+            configService);
+
+        await vm.InitializeAsync();
+
+        Assert.False(vm.SpeakerLabelingEnabled);
+    }
+
+    // -----------------------------------------------------------------------
     // TranscribeFileAsync — success path
     // -----------------------------------------------------------------------
 
@@ -608,6 +644,46 @@ internal sealed class StubConfigurationServiceWithWavPath : IConfigurationServic
         root["transcription"]!.AsObject()["wavFilePath"] = wavPath;
         _modifiedSettingsPath = Path.Combine(Path.GetTempPath(), $"voxflow-test-settings-{Guid.NewGuid():N}.json");
         File.WriteAllText(_modifiedSettingsPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    public Task<TranscriptionOptions> LoadAsync(string? configurationPath = null)
+        => Task.FromResult(TranscriptionOptions.LoadFromPath(configurationPath ?? _modifiedSettingsPath));
+
+    public IReadOnlyList<SupportedLanguage> GetSupportedLanguages(string? configurationPath = null)
+        => LoadAsync(configurationPath).GetAwaiter().GetResult().SupportedLanguages;
+
+    public void Dispose()
+    {
+        try { File.Delete(_modifiedSettingsPath); } catch { }
+    }
+}
+
+/// <summary>
+/// Configuration service that overrides transcription.speakerLabeling.enabled
+/// by rewriting a copy of the root settings file. Mirrors the pattern of
+/// <see cref="StubConfigurationServiceWithWavPath"/>.
+/// </summary>
+internal sealed class StubConfigurationServiceWithSpeakerLabeling : IConfigurationService, IDisposable
+{
+    private readonly string _modifiedSettingsPath;
+
+    public StubConfigurationServiceWithSpeakerLabeling(string settingsPath, bool speakerLabelingEnabled)
+    {
+        var json = File.ReadAllText(settingsPath);
+        var root = JsonNode.Parse(json)!.AsObject();
+        var transcription = root["transcription"]!.AsObject();
+        if (transcription["speakerLabeling"] is not JsonObject speakerLabeling)
+        {
+            speakerLabeling = new JsonObject();
+            transcription["speakerLabeling"] = speakerLabeling;
+        }
+        speakerLabeling["enabled"] = speakerLabelingEnabled;
+        _modifiedSettingsPath = Path.Combine(
+            Path.GetTempPath(),
+            $"voxflow-test-settings-{Guid.NewGuid():N}.json");
+        File.WriteAllText(
+            _modifiedSettingsPath,
+            root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     public Task<TranscriptionOptions> LoadAsync(string? configurationPath = null)
