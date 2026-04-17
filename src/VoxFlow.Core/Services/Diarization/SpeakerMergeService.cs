@@ -31,17 +31,31 @@ public sealed class SpeakerMergeService : ISpeakerMergeService
 
         var rawToOrdinal = new Dictionary<string, string>();
         var words = new List<TranscriptWord>(flattened.Count);
-        foreach (var (token, segmentStart) in flattened)
+        var wordGroups = GroupTokensByWord(flattened);
+        foreach (var group in wordGroups)
         {
-            var wordStart = segmentStart + TimeSpan.FromMilliseconds(token.Start * 10);
-            var wordEnd = segmentStart + TimeSpan.FromMilliseconds(token.End * 10);
+            // Speaker is chosen once per whisper word, using the word's full
+            // time span, so BPE subword continuations ("oxide" after " mon")
+            // and attached punctuation ("," after " hello") inherit the same
+            // speaker as the word's initial token. Assigning each subword
+            // independently produces the "dihydrogen mon / oxide" cross-
+            // speaker split observed in output.
+            var (firstToken, firstSegStart) = group[0];
+            var (lastToken, lastSegStart) = group[^1];
+            var wordStart = firstSegStart + TimeSpan.FromMilliseconds(firstToken.Start * 10);
+            var wordEnd = lastSegStart + TimeSpan.FromMilliseconds(lastToken.End * 10);
             var rawId = AssignSpeaker(wordStart, wordEnd, diarization.Segments);
             if (!rawToOrdinal.TryGetValue(rawId, out var ordinalId))
             {
                 ordinalId = OrdinalLabel(rawToOrdinal.Count);
                 rawToOrdinal[rawId] = ordinalId;
             }
-            words.Add(new TranscriptWord(wordStart, wordEnd, token.Text ?? string.Empty, ordinalId));
+            foreach (var (token, segStart) in group)
+            {
+                var tokenStart = segStart + TimeSpan.FromMilliseconds(token.Start * 10);
+                var tokenEnd = segStart + TimeSpan.FromMilliseconds(token.End * 10);
+                words.Add(new TranscriptWord(tokenStart, tokenEnd, token.Text ?? string.Empty, ordinalId));
+            }
         }
 
         var turns = SpeakerTurn.GroupConsecutive(words);
@@ -75,6 +89,34 @@ public sealed class SpeakerMergeService : ISpeakerMergeService
             }
         }
         return list;
+    }
+
+    // Word boundaries follow whisper's BPE convention: a leading " "
+    // (decoded "▁") marks a word-initial token. Tokens without a leading
+    // space are subword continuations or attached punctuation and must
+    // stay with the preceding word for speaker-attribution purposes;
+    // otherwise the overlap lookup can split one spoken word ("monoxide"
+    // → " mon" + "oxide") across a pyannote boundary.
+    private static List<List<(WhisperToken Token, TimeSpan SegmentStart)>> GroupTokensByWord(
+        List<(WhisperToken Token, TimeSpan SegmentStart)> flattened)
+    {
+        var groups = new List<List<(WhisperToken, TimeSpan)>>();
+        List<(WhisperToken, TimeSpan)>? current = null;
+        foreach (var item in flattened)
+        {
+            var text = item.Token.Text ?? string.Empty;
+            var startsNewWord = current is null || (text.Length > 0 && text[0] == ' ');
+            if (startsNewWord)
+            {
+                current = new List<(WhisperToken, TimeSpan)> { item };
+                groups.Add(current);
+            }
+            else
+            {
+                current!.Add(item);
+            }
+        }
+        return groups;
     }
 
     // whisper.cpp emits non-text tokens (begin-of-segment, timestamps,

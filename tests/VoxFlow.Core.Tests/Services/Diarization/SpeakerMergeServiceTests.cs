@@ -57,9 +57,9 @@ public sealed class SpeakerMergeServiceTests
 
         Assert.Equal(3, result.Words.Count);
         Assert.All(result.Words, w => Assert.Equal("A", w.SpeakerId));
-        Assert.Equal("hello", result.Words[0].Text);
-        Assert.Equal("world", result.Words[1].Text);
-        Assert.Equal("today", result.Words[2].Text);
+        Assert.Equal(" hello", result.Words[0].Text);
+        Assert.Equal(" world", result.Words[1].Text);
+        Assert.Equal(" today", result.Words[2].Text);
     }
 
     [Fact]
@@ -491,7 +491,93 @@ public sealed class SpeakerMergeServiceTests
         var result = service.Merge(segments, diarization, DefaultMetadata);
 
         Assert.Single(result.Words);
-        Assert.Equal("hello", result.Words[0].Text);
+        Assert.Equal(" hello", result.Words[0].Text);
+    }
+
+    [Fact]
+    public void Merge_BpeSubwordsOfOneWord_GetSameSpeaker()
+    {
+        // Observed regression: the rendered markdown split the word
+        // "monoxide" across speakers --
+        //   **Speaker A:** ... Water is dihydrogen mon
+        //   **Speaker B:** oxide, but that sounds scary ...
+        // Whisper BPE tokenizes "monoxide" as (" mon", "oxide") and, with
+        // per-token timestamps enabled, the two subwords can land on either
+        // side of a pyannote speaker boundary, producing that literal split.
+        // A word is the atomic unit of speaker attribution -- all BPE
+        // subwords belonging to one whisper word must share the same
+        // speaker, chosen from the word's overall time span.
+        var service = new SpeakerMergeService();
+        var segments = new[]
+        {
+            SegmentFactory.Create(0.0, 3.0, "Water is dihydrogen monoxide",
+                TokRaw(" Water",      0,   40),
+                TokRaw(" is",         50,  80),
+                TokRaw(" dihydrogen", 90,  170),
+                TokRaw(" mon",        180, 220),
+                TokRaw("oxide",       220, 260))
+        };
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: new[]
+            {
+                new DiarizationSpeaker("SPK1", 2.25),
+                new DiarizationSpeaker("SPK2", 0.75)
+            },
+            Segments: new[]
+            {
+                new DiarizationSegment("SPK1", 0.0, 2.25),
+                new DiarizationSegment("SPK2", 2.25, 3.0)
+            });
+
+        var result = service.Merge(segments, diarization, DefaultMetadata);
+
+        Assert.Equal(5, result.Words.Count);
+        // The subword pair (" mon", "oxide") spans 1.8s..2.6s -- 0.45s inside
+        // SPK1 and 0.35s inside SPK2; SPK1 wins. Without the word-grouping
+        // fix, "oxide" alone (2.2s..2.6s, fully inside SPK2) would flip to
+        // SPK2 and break the word across speakers.
+        Assert.Equal(result.Words[3].SpeakerId, result.Words[4].SpeakerId);
+        Assert.Equal(" mon", result.Words[3].Text);
+        Assert.Equal("oxide", result.Words[4].Text);
+    }
+
+    [Fact]
+    public void Merge_PunctuationToken_InheritsSpeakerFromPrecedingWord()
+    {
+        // Punctuation tokens (",", ".", "?") have no leading space and attach
+        // to the preceding word in whisper's BPE scheme, exactly like a
+        // subword continuation. They must follow the word's speaker rather
+        // than being attributed independently, otherwise a comma at the end
+        // of a sentence can end up on the next speaker's line.
+        var service = new SpeakerMergeService();
+        var segments = new[]
+        {
+            SegmentFactory.Create(0.0, 3.0, "hello, world",
+                TokRaw(" hello",  0,   80),
+                TokRaw(",",       80,  85),
+                TokRaw(" world",  200, 280))
+        };
+        var diarization = new DiarizationResult(
+            Version: 1,
+            Speakers: new[]
+            {
+                new DiarizationSpeaker("SPK1", 1.0),
+                new DiarizationSpeaker("SPK2", 2.0)
+            },
+            Segments: new[]
+            {
+                new DiarizationSegment("SPK1", 0.0, 0.82),
+                new DiarizationSegment("SPK2", 0.82, 3.0)
+            });
+
+        var result = service.Merge(segments, diarization, DefaultMetadata);
+
+        Assert.Equal(3, result.Words.Count);
+        // "hello" is fully inside SPK1, so the attached "," must also be
+        // SPK1. "world" starts at 2.0s -- fully inside SPK2.
+        Assert.Equal(result.Words[0].SpeakerId, result.Words[1].SpeakerId);
+        Assert.NotEqual(result.Words[0].SpeakerId, result.Words[2].SpeakerId);
     }
 
     [Fact]
@@ -521,11 +607,11 @@ public sealed class SpeakerMergeServiceTests
 
         // 2 + 0 + 3 = 5 words total
         Assert.Equal(5, result.Words.Count);
-        Assert.Equal("hello", result.Words[0].Text);
-        Assert.Equal("world", result.Words[1].Text);
-        Assert.Equal("how",   result.Words[2].Text);
-        Assert.Equal("are",   result.Words[3].Text);
-        Assert.Equal("you",   result.Words[4].Text);
+        Assert.Equal(" hello", result.Words[0].Text);
+        Assert.Equal(" world", result.Words[1].Text);
+        Assert.Equal(" how",   result.Words[2].Text);
+        Assert.Equal(" are",   result.Words[3].Text);
+        Assert.Equal(" you",   result.Words[4].Text);
         // Chronologically sorted start times.
         for (var i = 1; i < result.Words.Count; i++)
         {
@@ -552,7 +638,7 @@ public sealed class SpeakerMergeServiceTests
         {
             tokens.Add(new WhisperToken
             {
-                Text = e.Text,
+                Text = ShouldPrefixAsWordInitial(e.Text) ? " " + e.Text : e.Text,
                 Start = (long)Math.Round(e.StartSec * 100),
                 End = (long)Math.Round(e.EndSec * 100),
                 Probability = 1.0f
@@ -602,7 +688,34 @@ public sealed class SpeakerMergeServiceTests
         [property: JsonPropertyName("start")] double Start,
         [property: JsonPropertyName("end")] double End);
 
+    // whisper.net emits word-initial tokens with a decoded "▁" marker
+    // (rendered as a leading " "). To let tests read naturally (Tok("hello", ...))
+    // while still producing whisper-accurate fixtures, the helper auto-prefixes
+    // a single space when the text looks like a word. Callers that want to
+    // express a subword continuation or punctuation attachment ("oxide", ",")
+    // can pass the text unprefixed, and callers that pass a whisper special
+    // token ("[_BEG_]") or an already-prefixed word (" Today's") are left as-is.
     private static WhisperToken Tok(string text, long start, long end) => new()
+    {
+        Text = ShouldPrefixAsWordInitial(text) ? " " + text : text,
+        Start = start,
+        End = end,
+        Probability = 1.0f
+    };
+
+    private static bool ShouldPrefixAsWordInitial(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        var first = text[0];
+        if (first == ' ') return false;
+        if (first == '[') return false;
+        return char.IsLetterOrDigit(first);
+    }
+
+    // Emits the token text exactly as given -- for tests that need to express
+    // a BPE subword continuation ("oxide") or an attached punctuation token
+    // (",") where auto-prefixing would turn them into standalone words.
+    private static WhisperToken TokRaw(string text, long start, long end) => new()
     {
         Text = text,
         Start = start,
