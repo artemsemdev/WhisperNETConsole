@@ -117,19 +117,50 @@ internal sealed class LanguageSelectionService : ILanguageSelectionService
         TranscriptionOptions options)
     {
         // Whisper requires an initial language when building the processor, even though each candidate pass swaps it immediately.
-        var builder = factory.CreateBuilder()
-            .WithLanguage(options.SupportedLanguages[0].Code)
-            .WithProbabilities()
-            .WithNoSpeechThreshold(options.NoSpeechThreshold)
-            .WithLogProbThreshold(options.LogProbThreshold)
-            .WithEntropyThreshold(options.EntropyThreshold);
+        return ConfigureBuilderForTranscription(
+            factory.CreateBuilder(),
+            options.SupportedLanguages[0].Code,
+            options.NoSpeechThreshold,
+            options.LogProbThreshold,
+            options.EntropyThreshold,
+            options.UseNoContext).Build();
+    }
 
-        if (options.UseNoContext)
+    /// <summary>
+    /// Applies VoxFlow's standard Whisper configuration to a builder without
+    /// calling <c>Build</c>. Extracted as an internal helper so tests can spy
+    /// on which builder methods were invoked -- Whisper.net does not expose
+    /// the accumulated options through a public surface, but the same
+    /// assertion can be made via reflection once the builder chain has run.
+    /// </summary>
+    internal static WhisperProcessorBuilder ConfigureBuilderForTranscription(
+        WhisperProcessorBuilder builder,
+        string languageCode,
+        float noSpeechThreshold,
+        float logProbThreshold,
+        float entropyThreshold,
+        bool useNoContext)
+    {
+        builder = builder
+            .WithLanguage(languageCode)
+            .WithProbabilities()
+            // Per-token timestamps let SpeakerMergeService resolve speaker
+            // boundaries inside a single whisper segment. Without this flag,
+            // whisper.net sets every token's Start/End to the segment bounds
+            // and the entire segment gets attributed to whichever diarization
+            // speaker has the largest overlap, producing the "host + guest"
+            // turn merges reported by users.
+            .WithTokenTimestamps()
+            .WithNoSpeechThreshold(noSpeechThreshold)
+            .WithLogProbThreshold(logProbThreshold)
+            .WithEntropyThreshold(entropyThreshold);
+
+        if (useNoContext)
         {
             builder = builder.WithNoContext();
         }
 
-        return builder.Build();
+        return builder;
     }
 
     /// <summary>
