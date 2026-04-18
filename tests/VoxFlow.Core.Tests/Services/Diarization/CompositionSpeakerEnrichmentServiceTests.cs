@@ -70,19 +70,24 @@ public sealed class CompositionSpeakerEnrichmentServiceTests
     }
 
     [Fact]
-    public async Task EnrichAsync_EnabledStandaloneMode_ReturnsWarning_NeverBuildsInner()
+    public async Task EnrichAsync_EnabledStandaloneMode_BuildsInnerAndDelegates()
     {
         var options = SpeakerLabelingOptions.Disabled with
         {
             Enabled = true,
             RuntimeMode = PythonRuntimeMode.Standalone
         };
+        var sentinel = new SpeakerEnrichmentResult(
+            Document: null,
+            Warnings: new[] { "inner-was-called" },
+            RuntimeBootstrapped: false);
+        var inner = new StubEnrichmentService(sentinel);
         var buildCount = 0;
         var service = new CompositionSpeakerEnrichmentService(
             innerFactory: _ =>
             {
                 buildCount++;
-                throw new InvalidOperationException("should not be called");
+                return inner;
             });
 
         var result = await service.EnrichAsync(
@@ -96,10 +101,48 @@ public sealed class CompositionSpeakerEnrichmentServiceTests
             progress: null,
             cancellationToken: CancellationToken.None);
 
-        Assert.Null(result.Document);
-        Assert.Equal(0, buildCount);
-        Assert.Single(result.Warnings);
-        Assert.Contains("Standalone", result.Warnings[0]);
+        Assert.Same(sentinel, result);
+        Assert.Equal(1, buildCount);
+        Assert.Equal(1, inner.CallCount);
+    }
+
+    [Fact]
+    public void BuildRuntime_Standalone_ReturnsStandaloneRuntime()
+    {
+        var launcher = new VoxFlow.Core.Tests.Services.Python.FakeProcessLauncher();
+        var venvPaths = new VoxFlow.Core.Tests.Services.Python.FakeVenvPaths();
+        var standalonePaths = new VoxFlow.Core.Tests.Services.Python.FakeStandaloneRuntimePaths();
+
+        var runtime = CompositionSpeakerEnrichmentService.BuildRuntime(
+            PythonRuntimeMode.Standalone, launcher, venvPaths, standalonePaths);
+
+        Assert.IsType<StandaloneRuntime>(runtime);
+    }
+
+    [Fact]
+    public void BuildRuntime_ManagedVenv_ReturnsManagedVenvRuntime()
+    {
+        var launcher = new VoxFlow.Core.Tests.Services.Python.FakeProcessLauncher();
+        var venvPaths = new VoxFlow.Core.Tests.Services.Python.FakeVenvPaths();
+        var standalonePaths = new VoxFlow.Core.Tests.Services.Python.FakeStandaloneRuntimePaths();
+
+        var runtime = CompositionSpeakerEnrichmentService.BuildRuntime(
+            PythonRuntimeMode.ManagedVenv, launcher, venvPaths, standalonePaths);
+
+        Assert.IsType<ManagedVenvRuntime>(runtime);
+    }
+
+    [Fact]
+    public void BuildRuntime_SystemPython_ReturnsSystemPythonRuntime()
+    {
+        var launcher = new VoxFlow.Core.Tests.Services.Python.FakeProcessLauncher();
+        var venvPaths = new VoxFlow.Core.Tests.Services.Python.FakeVenvPaths();
+        var standalonePaths = new VoxFlow.Core.Tests.Services.Python.FakeStandaloneRuntimePaths();
+
+        var runtime = CompositionSpeakerEnrichmentService.BuildRuntime(
+            PythonRuntimeMode.SystemPython, launcher, venvPaths, standalonePaths);
+
+        Assert.IsType<SystemPythonRuntime>(runtime);
     }
 
     private sealed class StubEnrichmentService : ISpeakerEnrichmentService

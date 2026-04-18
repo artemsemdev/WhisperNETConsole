@@ -50,7 +50,7 @@ public sealed class SystemPythonRuntime : IPythonRuntime
         }
 
         var combined = string.IsNullOrWhiteSpace(result.StdOut) ? result.StdErr : result.StdOut;
-        var versionString = ParseVersionString(combined);
+        var versionString = PythonVersionParser.Parse(combined);
         if (versionString is null)
         {
             return PythonRuntimeStatus.NotReady($"Could not parse Python version from '{combined.Trim()}'.");
@@ -63,18 +63,6 @@ public sealed class SystemPythonRuntime : IPythonRuntime
         }
 
         return PythonRuntimeStatus.Ready(InterpreterFileName, versionString);
-    }
-
-    private static string? ParseVersionString(string raw)
-    {
-        var trimmed = raw.Trim();
-        const string prefix = "Python ";
-        if (!trimmed.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        return trimmed[prefix.Length..].Trim();
     }
 
     public ProcessStartInfo CreateStartInfo(string scriptPath, IEnumerable<string> arguments)
