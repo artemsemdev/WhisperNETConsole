@@ -19,8 +19,13 @@ public sealed class PhaseRingStackTests
     private static ProgressUpdate Frame(ProgressStage stage, double pct, string? msg = null)
         => new(stage, pct, TimeSpan.Zero, Message: msg);
 
+    private static bool IsPhaseArc(RenderedElement e, string phaseSlug)
+        => e.Name == "circle"
+            && e.Attributes.TryGetValue("data-phase", out var p)
+            && (p?.ToString() ?? string.Empty) == phaseSlug;
+
     [Fact]
-    public async Task RendersThreePhaseRings_InPhaseOrder()
+    public async Task RendersThreeNestedArcs_InPhaseOrder()
     {
         await using var context = DesktopUiTestContext.Create();
         var clock = new ControllableTimeProvider(T0);
@@ -28,17 +33,17 @@ public sealed class PhaseRingStackTests
 
         var rendered = await context.RenderAsync<PhaseRingStack>(Params(tracker));
 
-        var cells = rendered
-            .FindElements(e => e.HasClass("phase-cell"))
+        var arcs = rendered
+            .FindElements(e => e.Name == "circle" && e.Attributes.ContainsKey("data-phase"))
             .ToArray();
-        Assert.Equal(3, cells.Length);
-        Assert.Equal("transcription", cells[0].Attributes["data-phase"]?.ToString());
-        Assert.Equal("diarization", cells[1].Attributes["data-phase"]?.ToString());
-        Assert.Equal("merge", cells[2].Attributes["data-phase"]?.ToString());
+        Assert.Equal(3, arcs.Length);
+        Assert.Equal("transcription", arcs[0].Attributes["data-phase"]?.ToString());
+        Assert.Equal("diarization", arcs[1].Attributes["data-phase"]?.ToString());
+        Assert.Equal("merge", arcs[2].Attributes["data-phase"]?.ToString());
     }
 
     [Fact]
-    public async Task EachPhaseCell_PassesCorrectPhaseToken_ToItsRing()
+    public async Task ArcsUseCorrectPhaseColorTokens()
     {
         await using var context = DesktopUiTestContext.Create();
         var clock = new ControllableTimeProvider(T0);
@@ -46,17 +51,17 @@ public sealed class PhaseRingStackTests
 
         var rendered = await context.RenderAsync<PhaseRingStack>(Params(tracker));
 
-        var rings = rendered
-            .FindElements(e => e.HasClass("phase-ring") && !e.HasClass("phase-ring-stack"))
-            .ToArray();
-        Assert.Equal(3, rings.Length);
-        Assert.Contains("--phase-transcription", rings[0].Attributes["style"]?.ToString() ?? "");
-        Assert.Contains("--phase-diarization", rings[1].Attributes["style"]?.ToString() ?? "");
-        Assert.Contains("--phase-merge", rings[2].Attributes["style"]?.ToString() ?? "");
+        var transcription = rendered.FindElement(e => IsPhaseArc(e, "transcription"), "transcription arc");
+        var diarization = rendered.FindElement(e => IsPhaseArc(e, "diarization"), "diarization arc");
+        var merge = rendered.FindElement(e => IsPhaseArc(e, "merge"), "merge arc");
+
+        Assert.Contains("--phase-transcription", transcription.Attributes["style"]?.ToString() ?? "");
+        Assert.Contains("--phase-diarization", diarization.Attributes["style"]?.ToString() ?? "");
+        Assert.Contains("--phase-merge", merge.Attributes["style"]?.ToString() ?? "");
     }
 
     [Fact]
-    public async Task ChevronDividers_SeparateRings()
+    public async Task ArcRadiiMatchConcentricContract()
     {
         await using var context = DesktopUiTestContext.Create();
         var clock = new ControllableTimeProvider(T0);
@@ -64,12 +69,17 @@ public sealed class PhaseRingStackTests
 
         var rendered = await context.RenderAsync<PhaseRingStack>(Params(tracker));
 
-        var dividers = rendered.FindElements(e => e.HasClass("phase-divider")).ToArray();
-        Assert.Equal(2, dividers.Length);
+        var transcription = rendered.FindElement(e => IsPhaseArc(e, "transcription"), "transcription arc");
+        var diarization = rendered.FindElement(e => IsPhaseArc(e, "diarization"), "diarization arc");
+        var merge = rendered.FindElement(e => IsPhaseArc(e, "merge"), "merge arc");
+
+        Assert.Equal("92", transcription.Attributes["r"]?.ToString());
+        Assert.Equal("72", diarization.Attributes["r"]?.ToString());
+        Assert.Equal("52", merge.Attributes["r"]?.ToString());
     }
 
     [Fact]
-    public async Task TranscriptionRunning_TranscriptionCellHasRunningStatus()
+    public async Task ArcDashOffset_ReflectsLocalPercent()
     {
         await using var context = DesktopUiTestContext.Create();
         var clock = new ControllableTimeProvider(T0);
@@ -79,19 +89,16 @@ public sealed class PhaseRingStackTests
         tracker.OnProgress(Frame(ProgressStage.Transcribing, 45.0));
         await rendered.SynchronizeAsync();
 
-        var transcriptionCell = rendered.FindElement(
-            e => e.HasClass("phase-cell")
-                 && e.Attributes.TryGetValue("data-phase", out var p)
-                 && (p?.ToString() ?? "") == "transcription",
-            "transcription phase-cell");
-        Assert.Equal("running", transcriptionCell.Attributes["data-status"]?.ToString());
-
-        // Transcription local at ProgressStage.Transcribing 45% overall = 50%
-        Assert.Contains("50", transcriptionCell.TextContent);
+        var transcription = rendered.FindElement(e => IsPhaseArc(e, "transcription"), "transcription arc");
+        var dashOffset = transcription.Attributes["stroke-dashoffset"]?.ToString() ?? "";
+        var parsed = double.Parse(dashOffset, System.Globalization.CultureInfo.InvariantCulture);
+        // Local percent for Transcribing @ 45% overall = 50%. Circumference 2π*92 ≈ 578.053.
+        // Expected dashoffset at 50% = ~289.027.
+        Assert.InRange(parsed, 288.5, 289.6);
     }
 
     [Fact]
-    public async Task SkippedDiarization_DiarizationCellHasSkippedStatus()
+    public async Task SkippedDiarization_MiddleArcUsesSkippedToken()
     {
         await using var context = DesktopUiTestContext.Create();
         var clock = new ControllableTimeProvider(T0);
@@ -99,17 +106,12 @@ public sealed class PhaseRingStackTests
 
         var rendered = await context.RenderAsync<PhaseRingStack>(Params(tracker));
 
-        var diarizationCell = rendered.FindElement(
-            e => e.HasClass("phase-cell")
-                 && e.Attributes.TryGetValue("data-phase", out var p)
-                 && (p?.ToString() ?? "") == "diarization",
-            "diarization phase-cell");
-        Assert.Equal("skipped", diarizationCell.Attributes["data-status"]?.ToString());
-        Assert.Contains("skipped", diarizationCell.TextContent, StringComparison.OrdinalIgnoreCase);
+        var diarization = rendered.FindElement(e => IsPhaseArc(e, "diarization"), "diarization arc");
+        Assert.Contains("--phase-skipped", diarization.Attributes["style"]?.ToString() ?? "");
     }
 
     [Fact]
-    public async Task OuterStack_HasProgressbarRole_ReflectingFocusPhase()
+    public async Task Center_ShowsPercentAndStageLabel_DuringRunning()
     {
         await using var context = DesktopUiTestContext.Create();
         var clock = new ControllableTimeProvider(T0);
@@ -119,11 +121,14 @@ public sealed class PhaseRingStackTests
         tracker.OnProgress(Frame(ProgressStage.Transcribing, 45.0));
         await rendered.SynchronizeAsync();
 
-        var stack = rendered.FindElement(
-            e => e.Name == "div" && e.HasClass("phase-ring-stack"),
-            "phase-ring-stack");
-        Assert.Equal("progressbar", stack.Attributes["role"]?.ToString());
-        Assert.Equal("Transcription progress", stack.Attributes["aria-label"]?.ToString());
-        Assert.Equal("50", stack.Attributes["aria-valuenow"]?.ToString());
+        var percent = rendered.FindElement(
+            e => e.HasClass("phase-center-percent"),
+            ".phase-center-percent");
+        Assert.Contains("50", percent.TextContent);
+
+        var label = rendered.FindElement(
+            e => e.HasClass("phase-center-label"),
+            ".phase-center-label");
+        Assert.Contains("TRANSCRIPTION", label.TextContent, StringComparison.OrdinalIgnoreCase);
     }
 }
