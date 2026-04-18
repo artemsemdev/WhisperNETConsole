@@ -811,6 +811,30 @@ public sealed class DesktopUiComponentTests
     }
 
     [Fact]
+    public async Task RunningView_ActivityPanel_RendersPulseDotAndStageMessage()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Running,
+            currentProgress: new ProgressUpdate(
+                ProgressStage.LoadingModel,
+                8,
+                TimeSpan.FromSeconds(3),
+                null));
+
+        var rendered = await context.RenderAsync<RunningView>();
+
+        var panel = rendered.FindElement(
+            e => e.HasClass("activity-panel"),
+            ".activity-panel");
+        Assert.Contains("loading model", panel.TextContent, StringComparison.OrdinalIgnoreCase);
+
+        var pulseDots = rendered.FindElements(e => e.HasClass("activity-pulse-dot"));
+        Assert.Single(pulseDots);
+    }
+
+    [Fact]
     public async Task RunningView_ProgressBar_HasAccessibilityAttributes()
     {
         await using var context = DesktopUiTestContext.Create();
