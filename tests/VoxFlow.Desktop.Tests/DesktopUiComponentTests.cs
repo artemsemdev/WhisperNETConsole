@@ -1121,4 +1121,42 @@ public sealed class DesktopUiComponentTests
         File.WriteAllText(configPath, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         return configPath;
     }
+
+    [Fact]
+    public async Task CompleteView_RendersTopBar()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Complete,
+            transcriptionResult: new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: null,
+                AcceptedSegmentCount: 2,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.FromSeconds(5),
+                Warnings: [],
+                TranscriptPreview: "preview"));
+
+        var rendered = await context.RenderAsync<CompleteView>();
+
+        var topbar = rendered.FindElement(e => e.HasClass("topbar"), ".topbar header");
+        Assert.Contains("VoxFlow", topbar.TextContent);
+    }
+
+    [Fact]
+    public async Task FailedView_RendersTopBar()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Failed,
+            errorMessage: "Something went wrong");
+
+        var rendered = await context.RenderAsync<FailedView>();
+
+        var topbar = rendered.FindElement(e => e.HasClass("topbar"), ".topbar header");
+        Assert.Contains("VoxFlow", topbar.TextContent);
+    }
 }
