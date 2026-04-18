@@ -11,50 +11,42 @@
     var merge = phases[(int)ProgressPhase.Merge];
 
     var focus = FocusPhase(phases);
-    var percentText = FocusPercent(focus);
-    var labelText = FocusLabel(focus);
     var ariaLabel = $"{FocusLabelTitleCase(focus)} progress";
     var ariaValueNow = ((int)Math.Round(focus.LocalPercent)).ToString(CultureInfo.InvariantCulture);
-    var stageCssClass = focus.Status switch
-    {
-        PhaseStatus.Done => "is-done",
-        PhaseStatus.Failed => "is-failed",
-        PhaseStatus.Skipped => "is-skipped",
-        PhaseStatus.Running => "is-running",
-        _ => "is-idle"
-    };
 }
 
-<div class="phase-ring-stack @stageCssClass"
+<div class="phase-ring-stack"
      role="progressbar"
      aria-label="@ariaLabel"
      aria-valuemin="0"
      aria-valuemax="100"
      aria-valuenow="@ariaValueNow">
-    <svg class="phase-ring-svg" viewBox="0 0 240 240" aria-hidden="true">
-        <!-- Tracks (always full) -->
-        <circle class="phase-track" cx="120" cy="120" r="92" />
-        <circle class="phase-track" cx="120" cy="120" r="72" />
-        <circle class="phase-track" cx="120" cy="120" r="52" />
 
-        @RenderPhaseArc(transcription, "transcription", 92, Circumference92)
-        @RenderPhaseArc(diarization, "diarization", 72, Circumference72)
-        @RenderPhaseArc(merge, "merge", 52, Circumference52)
-    </svg>
+    <div class="phase-cell"
+         data-phase="transcription"
+         data-status="@StatusSlug(transcription.Status)">
+        <PhaseRing State="@transcription" PhaseToken="--phase-transcription" />
+    </div>
 
-    <div class="phase-center" aria-hidden="true">
-        <div class="phase-center-pad">
-            <span class="phase-center-percent">@percentText</span>
-            <span class="phase-center-unit">%</span>
-            <span class="phase-center-label">@labelText</span>
-        </div>
+    <span class="@DividerClass" aria-hidden="true">›</span>
+
+    <div class="phase-cell"
+         data-phase="diarization"
+         data-status="@StatusSlug(diarization.Status)">
+        <PhaseRing State="@diarization" PhaseToken="--phase-diarization" />
+    </div>
+
+    <span class="@DividerClass" aria-hidden="true">›</span>
+
+    <div class="phase-cell"
+         data-phase="merge"
+         data-status="@StatusSlug(merge.Status)">
+        <PhaseRing State="@merge" PhaseToken="--phase-merge" />
     </div>
 </div>
 
 @code {
-    private const double Circumference92 = 2 * Math.PI * 92;
-    private const double Circumference72 = 2 * Math.PI * 72;
-    private const double Circumference52 = 2 * Math.PI * 52;
+    private const string DividerClass = "phase-divider";
 
     [Parameter, EditorRequired] public PhaseProgressTracker Tracker { get; set; } = default!;
 
@@ -68,40 +60,14 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private RenderFragment RenderPhaseArc(PhaseState state, string slug, int radius, double circumference)
-        => builder =>
-        {
-            var token = state.Status == PhaseStatus.Skipped
-                ? "--phase-skipped"
-                : state.Status == PhaseStatus.Failed
-                    ? "--phase-failed"
-                    : $"--phase-{slug}";
-
-            var fillPct = state.Status switch
-            {
-                PhaseStatus.Done => 100.0,
-                PhaseStatus.Skipped => 100.0,
-                PhaseStatus.Failed => state.LocalPercent <= 0 ? 100.0 : state.LocalPercent,
-                _ => Math.Clamp(state.LocalPercent, 0.0, 100.0)
-            };
-            var offset = circumference * (1.0 - fillPct / 100.0);
-            var offsetStr = offset.ToString("0.###", CultureInfo.InvariantCulture);
-            var circumferenceStr = circumference.ToString("0.###", CultureInfo.InvariantCulture);
-
-            var cssClass = $"phase-arc phase-arc-{slug} phase-arc-{state.Status.ToString().ToLowerInvariant()}";
-            var style = $"stroke: var({token});";
-
-            builder.OpenElement(0, "circle");
-            builder.AddAttribute(1, "class", cssClass);
-            builder.AddAttribute(2, "data-phase", slug);
-            builder.AddAttribute(3, "cx", "120");
-            builder.AddAttribute(4, "cy", "120");
-            builder.AddAttribute(5, "r", radius.ToString(CultureInfo.InvariantCulture));
-            builder.AddAttribute(6, "stroke-dasharray", circumferenceStr);
-            builder.AddAttribute(7, "stroke-dashoffset", offsetStr);
-            builder.AddAttribute(8, "style", style);
-            builder.CloseElement();
-        };
+    private static string StatusSlug(PhaseStatus status) => status switch
+    {
+        PhaseStatus.Running => "running",
+        PhaseStatus.Done => "done",
+        PhaseStatus.Skipped => "skipped",
+        PhaseStatus.Failed => "failed",
+        _ => "idle"
+    };
 
     private static PhaseState FocusPhase(IReadOnlyList<PhaseState> phases)
     {
@@ -119,22 +85,6 @@
         }
         return phases[0];
     }
-
-    private static string FocusPercent(PhaseState focus) => focus.Status switch
-    {
-        PhaseStatus.Done => "100",
-        PhaseStatus.Skipped => "—",
-        PhaseStatus.Failed => "!",
-        _ => ((int)Math.Round(focus.LocalPercent)).ToString(CultureInfo.InvariantCulture)
-    };
-
-    private static string FocusLabel(PhaseState focus) => focus.Phase switch
-    {
-        ProgressPhase.Transcription => "TRANSCRIPTION",
-        ProgressPhase.Diarization => "DIARIZATION",
-        ProgressPhase.Merge => "MERGE",
-        _ => string.Empty
-    };
 
     private static string FocusLabelTitleCase(PhaseState focus) => focus.Phase switch
     {
