@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using VoxFlow.Desktop.Components.Shared;
 using Xunit;
 
@@ -16,6 +17,58 @@ public sealed class SettingsPanelTests
             e => e.Attributes.TryGetValue("id", out var id)
                 && (id?.ToString() ?? string.Empty) == "speaker-labeling-toggle");
         Assert.Single(toggle);
+    }
+
+    [Fact]
+    public async Task SettingsPanel_WhenShowSheetFalse_SheetHasNoShowClass()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        var parameters = ParameterView.FromDictionary(
+            new Dictionary<string, object?> { [nameof(SettingsPanel.ShowSheet)] = false });
+
+        var rendered = await context.RenderAsync<SettingsPanel>(parameters);
+
+        var sheet = rendered.FindElement(
+            e => e.HasClass("settings-sheet"),
+            ".settings-sheet container");
+        Assert.False(sheet.HasClass("show"));
+    }
+
+    [Fact]
+    public async Task SettingsPanel_WhenShowSheetTrue_SheetHasShowClass()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        var parameters = ParameterView.FromDictionary(
+            new Dictionary<string, object?> { [nameof(SettingsPanel.ShowSheet)] = true });
+
+        var rendered = await context.RenderAsync<SettingsPanel>(parameters);
+
+        var sheet = rendered.FindElement(
+            e => e.HasClass("settings-sheet"),
+            ".settings-sheet container");
+        Assert.True(sheet.HasClass("show"));
+    }
+
+    [Fact]
+    public async Task SettingsPanel_WhenBackdropClicked_FiresOnSheetClose()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        var closed = false;
+        var parameters = ParameterView.FromDictionary(
+            new Dictionary<string, object?>
+            {
+                [nameof(SettingsPanel.ShowSheet)] = true,
+                [nameof(SettingsPanel.OnSheetClose)] =
+                    EventCallback.Factory.Create(this, () => closed = true)
+            });
+
+        var rendered = await context.RenderAsync<SettingsPanel>(parameters);
+
+        await rendered.ClickAsync(
+            e => e.HasClass("settings-sheet-backdrop"),
+            ".settings-sheet-backdrop");
+
+        Assert.True(closed);
     }
 
     [Fact]

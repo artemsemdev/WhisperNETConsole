@@ -405,7 +405,7 @@ public sealed class DesktopUiComponentTests
         var rendered = await context.RenderAsync<ReadyView>();
 
         Assert.Contains("Audio Transcription", rendered.TextContent);
-        Assert.Contains("M4A, WAV, MP3, AAC, FLAC, OGG, AIFF, MP4", rendered.TextContent);
+        Assert.Contains("M4A · WAV · MP3 · AAC · FLAC · OGG · AIFF · MP4", rendered.TextContent);
     }
 
     [Fact]
@@ -695,7 +695,7 @@ public sealed class DesktopUiComponentTests
 
         var rendered = await context.RenderAsync<ReadyView>();
 
-        Assert.Contains("M4A, WAV, MP3, AAC, FLAC, OGG, AIFF, MP4", rendered.TextContent);
+        Assert.Contains("M4A · WAV · MP3 · AAC · FLAC · OGG · AIFF · MP4", rendered.TextContent);
         Assert.DoesNotContain("upload", rendered.TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("multiple files", rendered.TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Drop your M4A files", rendered.TextContent);

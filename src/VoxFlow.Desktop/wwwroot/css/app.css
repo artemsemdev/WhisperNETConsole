@@ -94,9 +94,134 @@ html, body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 32px 24px;
+    padding: 8px 24px 32px;
     overflow-y: auto;
     overflow-x: hidden;
+}
+
+/* ---------- Top Bar ---------- */
+.topbar {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 12px 4px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+}
+
+.wordmark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+}
+
+.wordmark-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+    box-shadow: 0 6px 16px -6px rgba(91, 94, 240, 0.7);
+    flex-shrink: 0;
+}
+
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.icon-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.icon-btn:hover:not(:disabled) {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+.icon-btn.is-active,
+.icon-btn[aria-expanded="true"] {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+.icon-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* A narrow "page column" wrapper used by Ready/Running/Complete so they
+   line up with the topbar's max-width. */
+.page-column {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* ---------- Settings bottom sheet ---------- */
+.settings-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-medium);
+    z-index: 40;
+}
+
+.settings-sheet-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.settings-sheet {
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    transform: translate(-50%, 100%);
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg-secondary);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    border-top: 1px solid var(--border);
+    padding: 12px 20px 24px;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+    transition: transform var(--transition-medium);
+    z-index: 50;
+}
+
+.settings-sheet.show {
+    transform: translate(-50%, 0);
+}
+
+.settings-sheet-handle {
+    width: 40px;
+    height: 4px;
+    margin: 0 auto 12px;
+    border-radius: 2px;
+    background: var(--text-muted);
+    opacity: 0.5;
 }
 
 /* ---------- Drop Zone ---------- */
