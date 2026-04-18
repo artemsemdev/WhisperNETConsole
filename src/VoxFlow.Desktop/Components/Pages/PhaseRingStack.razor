@@ -31,11 +31,11 @@
      aria-valuemin="0"
      aria-valuemax="100"
      aria-valuenow="@ariaValueNow">
-    <svg class="phase-ring-svg" viewBox="0 0 240 240" aria-hidden="true">
+    <svg class="phase-ring-svg" viewBox="0 0 200 200" aria-hidden="true">
         <!-- Tracks (always full) -->
-        <circle class="phase-track" cx="120" cy="120" r="92" />
-        <circle class="phase-track" cx="120" cy="120" r="72" />
-        <circle class="phase-track" cx="120" cy="120" r="52" />
+        <circle class="phase-track" cx="100" cy="100" r="92" />
+        <circle class="phase-track" cx="100" cy="100" r="72" />
+        <circle class="phase-track" cx="100" cy="100" r="52" />
 
         @RenderPhaseArc(transcription, "transcription", 92, Circumference92)
         @RenderPhaseArc(diarization, "diarization", 72, Circumference72)
@@ -44,8 +44,9 @@
 
     <div class="phase-center" aria-hidden="true">
         <div class="phase-center-pad">
-            <span class="phase-center-percent">@percentText</span>
-            <span class="phase-center-unit">%</span>
+            <div class="phase-center-pct-row">
+                <span class="phase-center-percent">@percentText</span><span class="phase-center-unit">%</span>
+            </div>
             <span class="phase-center-label">@labelText</span>
         </div>
     </div>
@@ -94,8 +95,8 @@
             builder.OpenElement(0, "circle");
             builder.AddAttribute(1, "class", cssClass);
             builder.AddAttribute(2, "data-phase", slug);
-            builder.AddAttribute(3, "cx", "120");
-            builder.AddAttribute(4, "cy", "120");
+            builder.AddAttribute(3, "cx", "100");
+            builder.AddAttribute(4, "cy", "100");
             builder.AddAttribute(5, "r", radius.ToString(CultureInfo.InvariantCulture));
             builder.AddAttribute(6, "stroke-dasharray", circumferenceStr);
             builder.AddAttribute(7, "stroke-dashoffset", offsetStr);
