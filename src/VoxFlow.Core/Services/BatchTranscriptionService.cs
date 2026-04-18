@@ -93,6 +93,9 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
         var discoveredFiles = _fileDiscovery.DiscoverInputFiles(batchOptions, request.MaxFiles, outputExtension);
         var results = new List<BatchFileResult>(discoveredFiles.Count);
 
+        // Host override wins over config default — matches TranscriptionService single-file behavior.
+        var speakerLabelingEnabled = request.EnableSpeakers ?? options.SpeakerLabeling.Enabled;
+
         // 4. Process each file
         for (var i = 0; i < discoveredFiles.Count; i++)
         {
@@ -138,7 +141,7 @@ internal sealed class BatchTranscriptionService : IBatchTranscriptionService
                 // Speaker enrichment (optional) — matches TranscriptionService single-file path.
                 TranscriptDocument? speakerTranscript = null;
                 var fileWarnings = new List<string>();
-                if (options.SpeakerLabeling.Enabled)
+                if (speakerLabelingEnabled)
                 {
                     try
                     {
