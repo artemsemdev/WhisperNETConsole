@@ -20,30 +20,32 @@
 
     <TopBar />
 
-    <div class="progress-info">
-        <p class="progress-caption" id="running-caption" aria-live="polite">
-            <span id="running-file-name">@fileName</span>
-            <span class="progress-dot" aria-hidden="true">·</span>
-            <span id="running-stage">@captionState</span>
-        </p>
+    <div class="running-body">
+        <div class="progress-info">
+            <p class="progress-caption" id="running-caption" aria-live="polite">
+                <span id="running-file-name">@fileName</span>
+                <span class="progress-dot" aria-hidden="true">·</span>
+                <span id="running-stage">@captionState</span>
+            </p>
+        </div>
+
+        <PhaseRingStack Tracker="@ViewModel.PhaseTracker" />
+
+        <div class="activity-panel" id="activity-panel" aria-live="polite">
+            <span class="@pulseClass" aria-hidden="true"></span>
+            <span class="activity-message">@activityMessage</span>
+        </div>
     </div>
 
-    <PhaseRingStack Tracker="@ViewModel.PhaseTracker" />
-
-    <div class="activity-panel" id="activity-panel" aria-live="polite">
-        <span class="@pulseClass" aria-hidden="true"></span>
-        <span class="activity-message">@activityMessage</span>
+    <div class="btn-group running-actions" style="@(isComplete ? "opacity:0;pointer-events:none" : "")">
+        <button id="cancel-transcription-button"
+                class="btn btn-secondary"
+                aria-label="Cancel Transcription"
+                title="Cancel Transcription"
+                @onclick="ViewModel.CancelTranscription">
+            Cancel
+        </button>
     </div>
-</div>
-
-<div class="btn-group mt-4" style="@(isComplete ? "opacity:0;pointer-events:none" : "")">
-    <button id="cancel-transcription-button"
-            class="btn btn-secondary"
-            aria-label="Cancel Transcription"
-            title="Cancel Transcription"
-            @onclick="ViewModel.CancelTranscription">
-        Cancel
-    </button>
 </div>
 
 @code {
