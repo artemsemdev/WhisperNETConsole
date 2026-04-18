@@ -405,7 +405,7 @@ public sealed class DesktopUiComponentTests
         var rendered = await context.RenderAsync<ReadyView>();
 
         Assert.Contains("Audio Transcription", rendered.TextContent);
-        Assert.Contains("M4A, WAV, MP3, AAC, FLAC, OGG, AIFF, MP4", rendered.TextContent);
+        Assert.Contains("M4A · WAV · MP3 · AAC · FLAC · OGG · AIFF · MP4", rendered.TextContent);
     }
 
     [Fact]
@@ -695,7 +695,7 @@ public sealed class DesktopUiComponentTests
 
         var rendered = await context.RenderAsync<ReadyView>();
 
-        Assert.Contains("M4A, WAV, MP3, AAC, FLAC, OGG, AIFF, MP4", rendered.TextContent);
+        Assert.Contains("M4A · WAV · MP3 · AAC · FLAC · OGG · AIFF · MP4", rendered.TextContent);
         Assert.DoesNotContain("upload", rendered.TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("multiple files", rendered.TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Drop your M4A files", rendered.TextContent);
@@ -811,6 +811,30 @@ public sealed class DesktopUiComponentTests
     }
 
     [Fact]
+    public async Task RunningView_ActivityPanel_RendersPulseDotAndStageMessage()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Running,
+            currentProgress: new ProgressUpdate(
+                ProgressStage.LoadingModel,
+                8,
+                TimeSpan.FromSeconds(3),
+                null));
+
+        var rendered = await context.RenderAsync<RunningView>();
+
+        var panel = rendered.FindElement(
+            e => e.HasClass("activity-panel"),
+            ".activity-panel");
+        Assert.Contains("loading model", panel.TextContent, StringComparison.OrdinalIgnoreCase);
+
+        var pulseDots = rendered.FindElements(e => e.HasClass("activity-pulse-dot"));
+        Assert.Single(pulseDots);
+    }
+
+    [Fact]
     public async Task RunningView_ProgressBar_HasAccessibilityAttributes()
     {
         await using var context = DesktopUiTestContext.Create();
@@ -827,11 +851,11 @@ public sealed class DesktopUiComponentTests
 
         var progressWrapper = rendered.FindElement(
             element => element.Name == "div"
-                       && element.HasClass("phase-ring")
+                       && element.HasClass("phase-ring-stack")
                        && element.Attributes.ContainsKey("role")
                        && element.Attributes.TryGetValue("aria-label", out var label)
                        && label?.ToString() == "Transcription progress",
-            "transcription phase ring with progressbar role");
+            "phase-ring-stack progressbar");
 
         Assert.Equal("progressbar", progressWrapper.Attributes["role"]?.ToString());
         // Transcribing at 45% overall → Transcription-local 50% (banding 0..90)
@@ -1096,5 +1120,43 @@ public sealed class DesktopUiComponentTests
         var configPath = Path.Combine(tempDir, "appsettings.single.json");
         File.WriteAllText(configPath, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         return configPath;
+    }
+
+    [Fact]
+    public async Task CompleteView_RendersTopBar()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Complete,
+            transcriptionResult: new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: null,
+                AcceptedSegmentCount: 2,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.FromSeconds(5),
+                Warnings: [],
+                TranscriptPreview: "preview"));
+
+        var rendered = await context.RenderAsync<CompleteView>();
+
+        var topbar = rendered.FindElement(e => e.HasClass("topbar"), ".topbar header");
+        Assert.Contains("VoxFlow", topbar.TextContent);
+    }
+
+    [Fact]
+    public async Task FailedView_RendersTopBar()
+    {
+        await using var context = DesktopUiTestContext.Create();
+        AppViewModelStateAccessor.SetState(
+            context.ViewModel,
+            currentState: AppState.Failed,
+            errorMessage: "Something went wrong");
+
+        var rendered = await context.RenderAsync<FailedView>();
+
+        var topbar = rendered.FindElement(e => e.HasClass("topbar"), ".topbar header");
+        Assert.Contains("VoxFlow", topbar.TextContent);
     }
 }

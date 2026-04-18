@@ -2,7 +2,7 @@
 
 **Parent:** [Local Speaker Labeling — Delivery Plan](README.md)
 **ADR:** [ADR-024](../../adr/024-local-speaker-labeling-pipeline.md)
-**Status:** Planned
+**Status:** Shipped on `speaker-labeling/phase-2-desktop-redesign` (PR #27 → `Local-Speaker-Labeling`). This document has been updated to match the implementation: P2.1 – P2.5 match the sub-PRs that landed; P2.6 (visual-system refresh) and P2.7 (sidecar packaging fix) are retrospective addenda covering work that shipped on the same branch but was not in the original plan.
 
 ---
 
@@ -17,10 +17,10 @@ Phase 2 is a pure presentation phase: no new Core services, no new output format
 - The Ready-screen `SettingsPanel` has a new speaker-labeling toggle whose initial state is bound to `TranscriptionOptions.SpeakerLabeling.Enabled`.
 - Toggling the switch persists back to `appsettings.json` via `DesktopConfigurationService.SaveUserOverridesAsync` under the `transcription.speakerLabeling.enabled` key.
 - `AppViewModel.TranscribeFileAsync` forwards the toggle state to the `TranscribeFileRequest` via `EnableSpeakers` so the user's last toggle is honored even if the underlying config has not been reloaded.
-- `RunningView` renders **three phase rings** (`Transcription`, `Diarization`, `Merge`) stacked vertically. Each ring shows its own local `0..100%` percent, its own sub-status line (`"loading model"`, `"embeddings"`, `"writing output"`, …), and its own phase-local elapsed time that freezes when the phase completes. The three rings use the same color semantics as the CLI (`Transcription` = cyan, `Diarization` = magenta, `Merge` = green) with hex values grounded in the existing `--accent` palette.
+- `RunningView` renders **three concentric phase rings** inside one 320×320 SVG container (outer = Transcription at `r=92`, middle = Diarization at `r=72`, inner = Merge at `r=52`). The center of the stack shows the **focus phase's** local `0..100%` percent plus a small phase label (`TRANSCRIPTION` / `DIARIZATION` / `MERGE`). Sub-status line (`"loading model"`, `"embeddings"`, `"writing output"`, …) and phase-local elapsed time live in a sibling **`.activity-panel`** card directly below the stack so the reader always sees a live heartbeat even when pyannote goes silent for minutes. Color tokens (`--phase-transcription` / `--phase-diarization` / `--phase-merge`) — see the P2.3 color table for the concrete hex values.
 - Phase state transitions (`Idle → Running → Done`) are driven off `ProgressStage` via the same `ProgressPhase` banding used by `CliProgressHandler` (`Transcribing/LoadingModel/Converting/...` → Transcription, `Diarizing` → Diarization, `Writing/Complete` → Merge). When a phase transitions to `Done` its ring renders at 100 %, shows `done`, and its elapsed clock stops.
 - The per-phase elapsed clock keeps ticking between sparse producer events via a 1 s view-model heartbeat (mirroring `CliProgressHandler.EnsureHeartbeatLocked`), so diarization doesn't look frozen during the multi-minute pyannote silence between sub-steps.
-- When speaker labeling is **disabled**, the Diarization ring renders as `Skipped` (muted color, no clock) rather than stuck at 0 %, so the user doesn't think the pipeline is hung.
+- When speaker labeling is **disabled**, the Diarization (middle) ring renders as `Skipped` (muted `--phase-skipped` color, no arc progression) rather than stuck at 0 %, so the user doesn't think the pipeline is hung.
 - `CompleteView` renders the `TranscriptDocument` as colored speaker turns when `TranscriptionResult.SpeakerTranscript` is not null. When it is null (feature off, or sidecar failure), the view falls back to the existing plain-text preview — no regressions.
 - Speaker colors come from the Okabe-Ito 8-color colorblind-safe palette. Speakers beyond the palette size wrap around modulo 8, and the cycle is documented inline so contributors know why.
 - Enrichment warnings (`result.EnrichmentWarnings`) are visible to the user via a non-blocking info banner on the completion screen, matching the existing `message message-warning` styling.
@@ -33,6 +33,7 @@ Phase 2 is a pure presentation phase: no new Core services, no new output format
 - Phase 1 is merged into `Local-Speaker-Labeling` and green on the integration branch.
 - `TranscribeFileResult.SpeakerTranscript` and `EnrichmentWarnings` are populated by `TranscriptionService` when the flag is on.
 - `DesktopConfigurationService` already supports `SaveUserOverridesAsync` with a `Dictionary<string, object>` — see [SettingsPanel.razor](../../../src/VoxFlow.Desktop/Components/Shared/SettingsPanel.razor) for the canonical usage pattern.
+- **Sidecar packaging contract.** The Intel Mac Catalyst CLI-bridge path resolves `voxflow_diarize.py` at `AppContext.BaseDirectory/python/voxflow_diarize.py`, which at runtime is `<app>/Contents/MonoBundle/cli/python/voxflow_diarize.py`. [VoxFlow.Desktop.csproj](../../../src/VoxFlow.Desktop/VoxFlow.Desktop.csproj)'s `CopyBundledCliBridge` target must copy `python/**/*` from the CLI output alongside the DLLs. Regression-covered by [DesktopCliBundleTests](../../../tests/VoxFlow.Desktop.Tests/DesktopCliBundleTests.cs).
 
 ## Non-goals
 
@@ -46,7 +47,7 @@ Phase 2 is a pure presentation phase: no new Core services, no new output format
 
 ## TDD Sequence
 
-Five sub-PRs, in strict order.
+Five sub-PRs planned in strict order, plus one retrospective addendum (P2.6) documenting the design-system refresh that shipped alongside P2.3 in the same integration branch.
 
 Conventions for every PR below:
 - **Branch:** `speaker-labeling/p2.M-<slug>` off `Local-Speaker-Labeling`.
@@ -208,13 +209,13 @@ The change is presentation-only — it subscribes to the exact same `ProgressUpd
 **Files touched (new):**
 - `src/VoxFlow.Core/Models/ProgressPhase.cs` — shared enum `{ Transcription, Diarization, Merge }` used by both the CLI and Desktop. Lives under Core because both hosts depend on Core.
 - `src/VoxFlow.Core/Models/ProgressPhaseBanding.cs` — shared static helper exposing `PhaseOf(ProgressStage)`, `LocalPercent(ProgressStage, double)`, and `PhaseUpperBound(ProgressStage)`. The existing private methods on `CliProgressHandler` are deleted and the CLI consumes this helper instead.
-- `src/VoxFlow.Desktop/ViewModels/PhaseProgressTracker.cs` — an `INotifyPropertyChanged` view-model layer sitting between `AppViewModel.CurrentProgress` and `RunningView`. Exposes an immutable `IReadOnlyList<PhaseState> Phases` where `PhaseState` is a record `(ProgressPhase Phase, PhaseStatus Status, double LocalPercent, string? SubStatus, TimeSpan Elapsed)`. Status is `{ Idle, Running, Done, Skipped, Failed }`. Runs a `System.Threading.Timer` heartbeat identical in shape to `CliProgressHandler`'s so `Elapsed` keeps advancing between producer events; timer is disposed the moment the terminal `Complete`/`Failed` frame arrives.
-- `src/VoxFlow.Desktop/Components/Pages/PhaseRing.razor` — one visual ring. Takes a `PhaseState` plus a phase color; renders the SVG ring + center percent + done checkmark + status/elapsed footer.
-- `src/VoxFlow.Desktop/Components/Pages/PhaseRingStack.razor` — stacks three `PhaseRing` components and passes each one its banded color. This is what `RunningView` actually embeds.
-- `src/VoxFlow.Desktop/wwwroot/css/phase-ring.css` — phase tokens (`--phase-transcription`, `--phase-diarization`, `--phase-merge`), ring track/arc styles, idle/running/done/skipped modifiers. Referenced from the existing `index.html` (or `app.css` if Desktop concatenates).
+- `src/VoxFlow.Desktop/ViewModels/PhaseProgressTracker.cs` — an `INotifyPropertyChanged` view-model layer sitting between `AppViewModel.CurrentProgress` and `RunningView`. Exposes an immutable `IReadOnlyList<PhaseState> Phases` where `PhaseState` is a record `(ProgressPhase Phase, PhaseStatus Status, double LocalPercent, string? SubStatus, TimeSpan Elapsed)`. Status is `{ Idle, Running, Done, Skipped, Failed }`. Runs a heartbeat (via `TimeProvider`) identical in shape to `CliProgressHandler`'s so `Elapsed` keeps advancing between producer events; timer is disposed the moment the terminal `Complete`/`Failed` frame arrives.
+- `src/VoxFlow.Desktop/Components/Pages/PhaseRingStack.razor` — **the only ring component `RunningView` actually embeds.** Renders all three phase arcs concentrically inside one SVG (radii `92 / 72 / 52`, viewBox `0 0 200 200`, stroke 6). The center shows the focus-phase percent + phase label; it does **not** render per-ring sub-status or elapsed (those live in the sibling `.activity-panel`).
+- `src/VoxFlow.Desktop/Components/Pages/PhaseRing.razor` — **auxiliary single-ring component** authored during early iterations (radius 50, its own arc math) but ultimately not rendered on RunningView after the concentric redesign. Kept in-tree with its own tests because it exercises the same `PhaseState` / `PhaseStatus` contract and guards against view-model regressions; may be reused by future single-ring affordances (e.g. a mini-tracker in the menu bar).
+- `src/VoxFlow.Desktop/wwwroot/css/app.css` — phase tokens (`--phase-transcription`, `--phase-diarization`, `--phase-merge`, `--phase-track`, `--phase-skipped`, `--phase-failed`), concentric `.phase-ring-stack` container, `.phase-track` / `.phase-arc` strokes, `.phase-center` sphere (96×96 radial-gradient via `::before`), and `.activity-panel` card. Rules are concatenated into the existing app-wide stylesheet; no separate `phase-ring.css` file was added.
 - `tests/VoxFlow.Desktop.Tests/Components/PhaseProgressTrackerTests.cs`
-- `tests/VoxFlow.Desktop.Tests/Components/PhaseRingTests.cs`
-- `tests/VoxFlow.Desktop.Tests/Components/PhaseRingStackTests.cs`
+- `tests/VoxFlow.Desktop.Tests/Components/PhaseRingTests.cs` — covers the auxiliary single-ring component.
+- `tests/VoxFlow.Desktop.Tests/Components/PhaseRingStackTests.cs` — covers the concentric contract (three arcs in phase order, `r=92/72/52`, per-phase color tokens, dash-offset from `LocalPercent`, `--phase-skipped` for skipped Diarization, center `.phase-center-percent` / `.phase-center-label`).
 - `tests/VoxFlow.Core.Tests/Models/ProgressPhaseBandingTests.cs`
 
 **Files touched (modified):**
@@ -222,15 +223,18 @@ The change is presentation-only — it subscribes to the exact same `ProgressUpd
 - `src/VoxFlow.Desktop/Components/Pages/RunningView.razor` — replace the single organic-progress SVG block with a `<PhaseRingStack Tracker="@ViewModel.PhaseTracker" />` component. Keep the `cancel` button and the top-level progress-info caption (`"Starting transcription..."`, file name) unchanged.
 - `src/VoxFlow.Desktop/ViewModels/AppViewModel.cs` — construct the `PhaseProgressTracker` on init, feed `ProgressUpdate` events into it from the existing progress pipeline, and expose it as `public PhaseProgressTracker PhaseTracker { get; }`. `CurrentProgress` stays for the caption but the ring state comes from the tracker.
 
-**Color palette (new tokens in `phase-ring.css`):**
+**Color palette (shipped in `app.css`; design traded CLI ANSI parity for the concentric mockup's outer-to-inner purple → cyan → green gradient):**
 
-| Phase | Token | Hex | Rationale |
+| Ring | Token | Hex | Rationale |
 |---|---|---|---|
-| Transcription | `--phase-transcription` | `#4aa8ff` | Cyan family, matches CLI ANSI 96 and the existing `--accent` blue lineage. |
-| Diarization | `--phase-diarization` | `#b06cff` | Magenta family, matches CLI ANSI 95. Distinct from transcription cyan and merge green under CVD. |
-| Merge | `--phase-merge` | `#28c840` | Green, matches CLI ANSI 92 and the existing `--success` token. |
-| Idle track | `--phase-track` | `rgba(42,42,74,0.4)` | Existing `organic-track` color; keeps the dark-theme continuity. |
-| Skipped ring | `--phase-skipped` | `#4a4a6a` | Existing `--drop-zone-border`; communicates "off by design" without looking like a stall. |
+| Transcription (outer, `r=92`) | `--phase-transcription` | `#a78bfa` | Purple; outermost ring leads the eye inward in the concentric layout. Replaces the original cyan from the early stacked-strip mockup. |
+| Diarization (middle, `r=72`) | `--phase-diarization` | `#4db8ff` | Cyan/blue; middle ring, distinct from both the outer purple and inner green under CVD. Replaces the original magenta. |
+| Merge (inner, `r=52`) | `--phase-merge` | `var(--success)` (`#28c840`) | Green; reuses the existing `--success` token. |
+| Idle track | `--phase-track` | `rgba(255,255,255,0.06)` | Near-invisible white wash; lets the concentric ring set feel embedded in the dark surface rather than sitting on a visible groove. |
+| Skipped ring | `--phase-skipped` | `var(--drop-zone-border)` (`#4a4a6a`) | Communicates "off by design" without looking like a stall. |
+| Failed arc | `--phase-failed` | `var(--error)` (`#ff5f57`) | Matches the app-wide error token used by `FailedView` and existing error banners. |
+
+*Note on CLI divergence:* the CLI still uses cyan/magenta/green (ANSI 96/95/92). Desktop's concentric stack deliberately remaps the outer/middle hues to purple/cyan so the rings read as a single cohesive gradient rather than three competing accents. `ProgressPhaseBanding` remains shared, so the phase *mapping* (stage → phase) is bit-for-bit identical across hosts — only the color presentation diverges.
 
 **`PhaseProgressTracker` contract:**
 
@@ -245,12 +249,25 @@ The change is presentation-only — it subscribes to the exact same `ProgressUpd
 - Skipped phases: when `speakerLabeling` is off, the producer never emits `Diarizing`. The tracker **does not** pre-mark Diarization as `Skipped` — it only knows what the producer says. To surface `Skipped`, `AppViewModel` passes `speakerLabelingEnabled` into the tracker constructor; when `false`, the Diarization entry is born `Skipped` and the tracker never transitions it.
 - Heartbeat: `System.Threading.Timer` ticks every 1 s, projects the `Running` phase's `Elapsed = DateTime.UtcNow - StartedAtUtc`, and raises `PropertyChanged` on `Phases`. Matches `CliProgressHandler.OnHeartbeat` beat-for-beat.
 
-**`PhaseRing.razor` rendering contract:**
+**`PhaseRingStack.razor` rendering contract (the concentric stack `RunningView` actually uses):**
 
-- SVG 120×120 viewport, 7 px stroke track, 7 px stroke arc, center text 18 px + unit 11 px for idle/running, checkmark + "done" label for done/skipped.
-- Arc stroke color = the phase token. Arc rendering = `stroke-dasharray` / `stroke-dashoffset` identical to the existing organic-progress math, just at radius 50 instead of 80.
-- Under the ring: one line for `SubStatus`, one line for `mm:ss` elapsed.
-- States: `idle` = track only, no arc, no elapsed text; `running` = animated arc, live clock, sub-status; `done` = full arc in phase color, static clock at final value, `"done"` sub-status, muted checkmark overlay; `skipped` = track only in `--phase-skipped`, sub-status `"skipped"`, no clock; `failed` = full arc in `--error`, sub-status `"failed"`, static clock.
+- One SVG, `viewBox="0 0 200 200"`, rendered inside a 320×320 CSS container with an ambient blue/cyan radial-gradient glow layered via `.phase-ring-stack::before` and a `drop-shadow` filter on the SVG itself (matches the desktop redesign mockup).
+- **Three tracks** (full circles) at `r=92/72/52`, each with `stroke: var(--phase-track)` and `stroke-width: 6`.
+- **Three arcs** at the same radii, one per phase, each with `stroke: var(--phase-{slug})` and rounded caps. Arc length is driven by `stroke-dasharray = 2πr` + `stroke-dashoffset = 2πr · (1 - localPct/100)`, so `LocalPercent` from `PhaseProgressTracker` drives each arc independently. A subtle `phase-arc-breathe` animation on `.phase-arc-running` keeps the live arc visually alive during pyannote's silent stretches.
+- **Center** is a 96×96 dark radial-gradient sphere (`.phase-center::before`) holding the focus-phase's percent (38 px, `.phase-center-percent`) + unit (`%`) on one baseline-aligned row, with the focus phase label (`TRANSCRIPTION` / `DIARIZATION` / `MERGE`) stacked underneath in `.phase-center-label` (uppercase tracking). Focus-phase selection: `Failed → Running → last Done → first Idle`.
+- **Per-phase states** (apply to each arc independently):
+  - `idle` — arc not emitted; only the track is visible.
+  - `running` — arc drawn at `circumference · (1 - localPct/100)`, breathing animation on.
+  - `done` — arc drawn at 100 %, no animation.
+  - `skipped` — arc uses `--phase-skipped`; no animation, no clock. The center never focuses a skipped phase.
+  - `failed` — arc uses `--phase-failed` with a `drop-shadow` halo; the center shows `!` + `FAILED` label via `FocusPercent` / `FocusLabel`.
+- **Sub-status and elapsed live outside the stack**, in the sibling `.activity-panel` card below. The card shows a color-pulsed dot (`.activity-pulse-{phase}` class, phase-tinted via `--phase-{slug}`) plus a single human-readable line synthesized from the focus phase's `SubStatus` + `mm:ss` elapsed (`RunningView.BuildActivityMessage`). This is what the user watches while pyannote is grinding.
+
+**`PhaseRing.razor` rendering contract (auxiliary single-ring component; not on RunningView today):**
+
+- SVG with `radius=50`, one track circle + one arc circle, center showing `LocalPercent` + phase-dependent glyph, footer with `SubStatus` + `mm:ss` elapsed.
+- Same `PhaseState` / `PhaseStatus` contract as the stack so either layout stays interchangeable.
+- Tests in `PhaseRingTests.cs` cover: `idle` = track only, no arc, no elapsed; `running` = animated arc at `circumference · (1 - localPct/100)`; `done` = full arc in phase color with frozen clock; `skipped` = track-only in `--phase-skipped`, no clock; `failed` = full arc in `--phase-failed` with static clock.
 
 **TDD steps:**
 
@@ -459,18 +476,73 @@ Test plan:
 
 ---
 
+### P2.6 — Visual-system refresh (retrospective addendum)
+
+**Status:** Shipped alongside P2.3 on `speaker-labeling/phase-2-desktop-redesign` (PR #27). Not a separate branch — documented here so future readers see that the "Desktop redesign" commits were part of Phase 2 scope, not undocumented drift.
+
+**Why this exists:** P2.3's three-ring stack forced a broader conversation about the Running screen's visual language — the old single-organic-circle aesthetic didn't scale cleanly to "three rings + a live heartbeat line". Rather than bolt the new ring stack onto the legacy chrome and accept a visual seam, the chrome around the rings was refreshed in lockstep: top bar, drop zone, settings panel, font stack, and the broader palette all moved to a single coherent dark-UI direction (purple-accented, Inter + JetBrains Mono, bottom-sheet Settings). The three-ring stack and the chrome were designed to read as one piece, so they were implemented as one piece.
+
+**What shipped (by commit on the branch):**
+
+- `986e1d9 — style(desktop): shift color palette + load Inter/JetBrains Mono fonts.` New font stack (Inter for UI, JetBrains Mono for numerics/timestamps) loaded from local `wwwroot/fonts/`. Palette shifted to dark purple-accented surfaces so the concentric ring gradient reads as intentional rather than out-of-place against the old Logic-Pro blue chrome.
+- `a78799c — feat(desktop): add TopBar component and bottom-sheet Settings shell.` New [`TopBar.razor`](../../../src/VoxFlow.Desktop/Components/Shared/TopBar.razor) (shared across Ready / Running / Complete / Failed views) carrying the app title and a settings trigger. Settings moved from an inline Ready-screen card into a bottom-sheet shell so the speaker toggle and format picker don't crowd the drop zone.
+- `f0fb6c6 — style(desktop): restyle drop zone as 180x180 purple pad with two outer rings.` [`DropZone.razor`](../../../src/VoxFlow.Desktop/Components/Shared/DropZone.razor) now renders a 180×180 purple landing pad surrounded by two concentric outer rings, visually rhyming with the three-ring progress stack on `RunningView`.
+- `bcf6548 — style(desktop): resize pill switch and segment the format picker into 5 columns.` The speaker-labeling pill switch and the output-format picker in `SettingsPanel` were reshaped into a consistent segmented-control style so they read as one family of controls in the bottom sheet.
+- `67f2e33 — feat(desktop): replace three horizontal phase rings with nested concentric arcs.` **The actual P2.3 pivot.** The originally-planned three-vertically-stacked rings were replaced with three concentric arcs in one SVG. The `PhaseState` / `PhaseProgressTracker` contract was preserved, so the view-model side of P2.3 needed no rewrite — only `PhaseRingStack.razor` and the CSS tokens changed. `PhaseRing.razor` remains in-tree as an auxiliary component (see P2.3 Files-touched note).
+- `d48fdcc — feat(desktop): add Activity panel with pulsing dot and phase-aware caption.` New `.activity-panel` card directly below the concentric ring stack. Renders a phase-tinted pulsing dot (`--phase-transcription` / `--phase-diarization` / `--phase-merge`) plus a synthesized `"<sub-status> · <mm:ss>"` line keyed off the focus phase. This is the surface that replaces the per-ring sub-status/elapsed footers from the original P2.3 plan — one shared heartbeat line for the focus phase instead of three parallel ones.
+- `75bc2a6 — feat(desktop): wire shared TopBar into CompleteView and FailedView.` `TopBar` now sits above every top-level view for consistent chrome.
+- `eeb2f75 — fix(desktop): anchor TopBar at top and center running-body in column.` Layout fix: `.page-column { flex: 1 0 auto; min-height: 100%; }` + `.running-body { flex: 1 1 auto; justify-content: center; }` so the TopBar stays docked and the ring stack sits visually centered in the remaining vertical space.
+- `2588617 — fix(desktop): match mockup sizing for concentric phase rings.` Container 240×240 → 320×320, SVG viewBox 240 → 200 (so `r=92` fills ~92 % instead of 77 %), stroke 10 → 6, center sphere 80×80 → 96×96 (drawn via `.phase-center::before` radial gradient), percent 30 → 38 px. Activity panel reshaped into a full-width bg-secondary card to match the `.activity` card in the mockup.
+
+**What did NOT follow strict TDD:** the visual-refresh commits were primarily CSS + markup restructuring driven by a live mockup ([`artifacts/design/running-screen.html`](../../../artifacts/design/running-screen.html) and a subsequent iteration owned by the user). Regression coverage comes from the P2.3 component tests (ring radii, phase tokens, dash-offset math, skipped state, percent/label assertions), the `DesktopUiComponentTests` that guard `progressbar` ARIA contracts, and the packaging test added in P2.7-adjacent work (see below). New visual affordances that *were* behavior-bearing (Activity panel's phase-pulse class, focus-phase label, skipped-state rendering) are covered directly in `PhaseRingStackTests` / `DesktopUiComponentTests` rather than through a standalone P2.6 TDD sequence.
+
+**Files touched (summary):**
+
+- `src/VoxFlow.Desktop/Components/Shared/TopBar.razor` (new)
+- `src/VoxFlow.Desktop/Components/Shared/DropZone.razor` (restyled)
+- `src/VoxFlow.Desktop/Components/Shared/SettingsPanel.razor` (moved into bottom-sheet shell, segmented controls)
+- `src/VoxFlow.Desktop/Components/Pages/RunningView.razor` (composes `TopBar` + `.running-body` + `PhaseRingStack` + `.activity-panel`)
+- `src/VoxFlow.Desktop/Components/Pages/CompleteView.razor` and `FailedView.razor` (adopt `TopBar`)
+- `src/VoxFlow.Desktop/Components/Pages/PhaseRingStack.razor` (concentric rewrite)
+- `src/VoxFlow.Desktop/wwwroot/css/app.css` (palette shift, new phase tokens, `.activity-panel`, `.page-column`, `.running-body`, sphere `::before`, drop-zone ring chrome)
+- `src/VoxFlow.Desktop/wwwroot/fonts/` (Inter + JetBrains Mono)
+- `artifacts/design/running-screen.html` (design source of truth — do not ship; referenced from this doc and P2.3)
+
+---
+
+### P2.7 — Mac Catalyst sidecar packaging fix (retrospective)
+
+**Status:** Shipped on `speaker-labeling/phase-2-desktop-redesign` (PR #27, commit [`47bec69`](../../../src/VoxFlow.Desktop/VoxFlow.Desktop.csproj)). Root cause sat dormant through Phase 1 and only surfaced once P2.1's toggle let a user actually request diarization from the Desktop app.
+
+**The bug:** The Intel Mac Catalyst build path spawns a bundled `VoxFlow.Cli.dll` child process. That child resolves `voxflow_diarize.py` via `ServiceCollectionExtensions.ResolveSidecarScriptPath()` as `{AppContext.BaseDirectory}/python/voxflow_diarize.py`, which at runtime is `<app>/Contents/MonoBundle/cli/python/voxflow_diarize.py`. The CLI project's `None Include` / `Link="python\voxflow_diarize.py"` correctly copies the script into `bin/<Configuration>/net9.0/python/` during the CLI build, but `CopyBundledCliBridge` in [`VoxFlow.Desktop.csproj`](../../../src/VoxFlow.Desktop/VoxFlow.Desktop.csproj) was globbing only `*.dll`, `*.deps.json`, `*.runtimeconfig.json`, `ggml-metal.metal`, and `runtimes/macos-*/**/*` — the `python/` subtree was silently dropped. At runtime the sidecar exited with code 2 (Python `[Errno 2] No such file or directory`), surfaced to the user as `speaker-labeling: process-crashed`.
+
+**The fix (TDD):**
+
+1. **Red.** `DesktopCliBundleTests.MonoBundleCli_IncludesPyannoteSidecarScript` + `MonoBundleCli_IncludesPythonRequirementsTxt` — locate the most-recently-built `.app` bundle (rank by `VoxFlow.Cli.dll` mtime so stale Release/arm64 outputs don't mask a fresh Debug/x64 build) and assert both files exist under `Contents/MonoBundle/cli/python/`. Tests initially fail; `SkippableFact` skip path kicks in when no bundle has been built (e.g., CI without the maccatalyst workload).
+2. **Green.** Add a `BundledCliSidecarFiles` ItemGroup (`python/**/*` off the CLI bin dir) and a second `Copy` step in `CopyBundledCliBridge` that preserves the `python/` subdirectory under `MonoBundle/cli/`. `Xunit.SkippableFact 1.4.13` added to `VoxFlow.Desktop.Tests.csproj` (already used in `VoxFlow.Core.Tests`).
+3. **Verify.** Debug rebuild produces `MonoBundle/cli/python/voxflow_diarize.py` and `python-requirements.txt`; Desktop suite 145/2 skipped green; full CLI + MCP suites green.
+
+**Files touched:**
+
+- `src/VoxFlow.Desktop/VoxFlow.Desktop.csproj` — new `BundledCliSidecarFiles` ItemGroup + second `Copy` step in `CopyBundledCliBridge`.
+- `tests/VoxFlow.Desktop.Tests/DesktopCliBundleTests.cs` (new) — bundle-contents regression tests.
+- `tests/VoxFlow.Desktop.Tests/VoxFlow.Desktop.Tests.csproj` — add `Xunit.SkippableFact` reference.
+
+---
+
 ## Post-Phase-2 Checklist
 
 Before declaring Phase 2 complete and moving to Phase 3 planning:
 
-- [ ] All 5 sub-PRs merged into `Local-Speaker-Labeling`.
+- [ ] All planned sub-PRs (P2.1 – P2.5) plus the retrospective addenda (P2.6 visual refresh, P2.7 sidecar packaging fix) are merged into `Local-Speaker-Labeling`.
 - [ ] `dotnet test VoxFlow.sln` on `Local-Speaker-Labeling` is fully green.
 - [ ] Manual smoke on a real Mac Catalyst build: toggle on, transcribe the Obama clip, confirm the colored transcript renders on CompleteView with `Speaker A:` turns in the first palette color.
-- [ ] Manual smoke: toggle on, transcribe a multi-speaker file, confirm the three rings advance in order with phase-local clocks and speakers beyond index 0 have distinct palette colors.
-- [ ] Manual smoke: toggle off, transcribe any file, confirm the Diarization ring renders as Skipped, and CompleteView renders the plain-text preview exactly as before (no colored view, no warning banner).
-- [ ] Manual smoke: leave Desktop running through pyannote's embeddings step on a 5+ minute file; confirm the Diarization clock keeps ticking every second (no freeze) via the heartbeat.
+- [ ] Manual smoke: toggle on, transcribe a multi-speaker file, confirm the concentric ring stack advances outer → middle → inner (Transcription → Diarization → Merge), the focus-phase percent in the center tracks the active ring, the sibling Activity panel pulses in the matching phase color, and CompleteView speakers beyond index 0 have distinct palette colors.
+- [ ] Manual smoke: toggle off, transcribe any file, confirm the Diarization (middle) ring renders as Skipped, and CompleteView renders the plain-text preview exactly as before (no colored view, no warning banner).
+- [ ] Manual smoke: leave Desktop running through pyannote's embeddings step on a 5+ minute file; confirm the Activity panel's `mm:ss` keeps ticking every second (no freeze) via the heartbeat, and the Diarization arc is breathing (not flat-lined).
 - [ ] Manual smoke: force a sidecar failure (point `modelId` at a non-existent model), toggle on, transcribe; confirm the warning banner shows `speaker-labeling: …` and the plain-text preview still renders because `SpeakerTranscript` is null.
 - [ ] Okabe-Ito palette is documented in a one-line comment inside `OkabeItoPalette.cs` linking to the canonical source.
 - [ ] `ProgressPhaseBanding` is consumed by both `CliProgressHandler` and `PhaseProgressTracker`; no duplicate banding logic survives on either side.
-- [ ] No files under `src/VoxFlow.Cli` or `src/VoxFlow.McpServer` were touched in this phase (the banding helper lives in Core — the CLI only changes to _consume_ it).
+- [ ] No files under `src/VoxFlow.Cli` or `src/VoxFlow.McpServer` were touched in this phase **for behavior changes**. The sidecar bundling fix (P2.7) edits `src/VoxFlow.Desktop/VoxFlow.Desktop.csproj` only — CLI / MCP stay untouched.
+- [ ] Built `.app` bundle contains `Contents/MonoBundle/cli/python/voxflow_diarize.py` and `Contents/MonoBundle/cli/python/python-requirements.txt` (verified by `DesktopCliBundleTests` and by running speaker labeling end-to-end against a real audio file).
 - [ ] User has reviewed the integration branch state and approved starting Phase 3.
