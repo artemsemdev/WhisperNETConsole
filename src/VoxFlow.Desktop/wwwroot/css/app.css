@@ -5,34 +5,41 @@
 
 /* ---------- Design Tokens ---------- */
 :root {
-    --bg-primary: #1a1a2e;
-    --bg-secondary: #16213e;
-    --bg-surface: #0f3460;
-    --text-primary: #e0e0f0;
-    --text-secondary: #a0a0b8;
-    --text-muted: #6c6c8a;
-    --accent: #4a4aff;
-    --accent-hover: #5c5cff;
-    --accent-active: #3a3ae0;
-    --success: #28c840;
+    --bg-primary: #0f1220;
+    --bg-secondary: #161a2c;
+    --bg-surface: #1c2138;
+    --bg-raised: #222845;
+    --text-primary: #e7e9f3;
+    --text-secondary: #8a90a8;
+    --text-muted: #5a6080;
+    --accent: #5b5ef0;
+    --accent-hover: #7074ff;
+    --accent-active: #4a4ddb;
+    --accent-alt: #4db8ff;
+    --accent-alt-hover: #6fc6ff;
+    --success: #4ade80;
     --warning: #febc2e;
-    --error: #ff5f57;
-    --border: #2a2a4a;
-    --drop-zone-border: #4a4a6a;
-    --progress-bar: #4a4aff;
-    --progress-track: #2a2a4a;
+    --error: #ef4f5e;
+    --border: #22263c;
+    --drop-zone-border: #2d3353;
+    --progress-bar: #5b5ef0;
+    --progress-track: #22263c;
+    --line: rgba(255, 255, 255, 0.06);
+    --line-strong: rgba(255, 255, 255, 0.10);
 
-    /* Phase tracker (ADR-024 P2.3). Cyan/magenta/green mirror the CLI
-       ANSI 96/95/92 palette so the Desktop and CLI surfaces read as the
-       same product. Skipped reuses --drop-zone-border. */
-    --phase-transcription: #4aa8ff;
-    --phase-diarization: #b06cff;
+    /* Phase tracker (ADR-024 P2.3 redesign). Nested concentric rings:
+       outer=Transcription (purple), middle=Diarization (cyan/blue),
+       inner=Merge (green). Matches the desktop redesign mockup. */
+    --phase-transcription: #a78bfa;
+    --phase-diarization: #4db8ff;
     --phase-merge: var(--success);
-    --phase-track: rgba(42, 42, 74, 0.4);
+    --phase-track: rgba(255, 255, 255, 0.06);
     --phase-skipped: var(--drop-zone-border);
     --phase-failed: var(--error);
 
-    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --font-family: var(--font-display);
     --border-radius: 8px;
     --transition-fast: 150ms ease;
     --transition-normal: 250ms ease;
@@ -60,6 +67,7 @@ html, body {
     background-color: var(--bg-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     overflow: hidden;
     user-select: none;
 }
@@ -70,10 +78,13 @@ html, body {
     flex-direction: column;
     height: 100vh;
     width: 100vw;
-    background: var(--bg-primary);
     color: var(--text-primary);
     position: relative;
     overflow: hidden;
+    background:
+        radial-gradient(1200px 700px at 50% -10%, rgba(91, 94, 240, 0.12), transparent 60%),
+        radial-gradient(900px 600px at 80% 110%, rgba(77, 184, 255, 0.07), transparent 60%),
+        var(--bg-primary);
 }
 
 /* ---------- App Content ---------- */
@@ -119,7 +130,7 @@ html, body {
     position: absolute;
     inset: -12px;
     border-radius: 50%;
-    border: 1px solid rgba(74, 74, 255, 0.06);
+    border: 1px solid rgba(91, 94, 240, 0.06);
 }
 
 .drop-zone-circle {
@@ -127,7 +138,7 @@ html, body {
     inset: 0;
     border-radius: 50%;
     background: rgba(22, 33, 62, 0.7);
-    border: 1.5px solid rgba(74, 74, 255, 0.15);
+    border: 1.5px solid rgba(91, 94, 240, 0.15);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -142,9 +153,9 @@ html, body {
 }
 
 .drop-zone:hover .drop-zone-circle {
-    border-color: rgba(74, 74, 255, 0.3);
+    border-color: rgba(91, 94, 240, 0.3);
     box-shadow:
-        0 4px 30px rgba(74, 74, 255, 0.12),
+        0 4px 30px rgba(91, 94, 240, 0.12),
         inset 0 1px 3px rgba(255, 255, 255, 0.03);
 }
 
@@ -153,7 +164,7 @@ html, body {
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    border: 1.5px solid rgba(74, 74, 255, 0.12);
+    border: 1.5px solid rgba(91, 94, 240, 0.12);
     animation: ripple-wave 3s ease-out infinite;
 }
 
@@ -191,14 +202,14 @@ html, body {
 }
 
 .drop-zone.drag-over .drop-zone-circle {
-    border-color: rgba(74, 74, 255, 0.5);
-    box-shadow: 0 0 40px rgba(74, 74, 255, 0.2);
+    border-color: rgba(91, 94, 240, 0.5);
+    box-shadow: 0 0 40px rgba(91, 94, 240, 0.2);
     transform: scale(1.08);
 }
 
 .drop-zone.drag-over .ripple {
     animation-duration: 1.5s;
-    border-color: rgba(74, 74, 255, 0.25);
+    border-color: rgba(91, 94, 240, 0.25);
 }
 
 .drop-zone.drag-over .drop-label {
@@ -447,7 +458,7 @@ html, body {
 .organic-progress-spinner {
     width: 48px;
     height: 48px;
-    border: 3px solid rgba(74, 74, 255, 0.2);
+    border: 3px solid rgba(91, 94, 240, 0.2);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -695,7 +706,7 @@ button {
 .btn-primary:hover:not(:disabled) {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
-    box-shadow: 0 2px 12px rgba(74, 74, 255, 0.3);
+    box-shadow: 0 2px 12px rgba(91, 94, 240, 0.3);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -873,7 +884,7 @@ button {
     width: 64px;
     height: 64px;
     margin: 0 auto 16px;
-    background: rgba(74, 74, 255, 0.1);
+    background: rgba(91, 94, 240, 0.1);
     border-radius: 16px;
     display: flex;
     align-items: center;
@@ -920,7 +931,7 @@ button {
 .file-card-icon {
     width: 32px;
     height: 32px;
-    background: rgba(74, 74, 255, 0.15);
+    background: rgba(91, 94, 240, 0.15);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -1030,8 +1041,8 @@ button {
     font-size: 11px;
     font-weight: 500;
     color: var(--accent);
-    background: rgba(74, 74, 255, 0.1);
-    border: 1px solid rgba(74, 74, 255, 0.2);
+    background: rgba(91, 94, 240, 0.1);
+    border: 1px solid rgba(91, 94, 240, 0.2);
     padding: 3px 10px;
     border-radius: 12px;
     letter-spacing: 0.3px;
@@ -1171,8 +1182,8 @@ button {
 
 .format-segment-active {
     color: var(--text-primary);
-    background: rgba(74, 74, 255, 0.12);
-    border-color: rgba(74, 74, 255, 0.25);
+    background: rgba(91, 94, 240, 0.12);
+    border-color: rgba(91, 94, 240, 0.25);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -1239,14 +1250,14 @@ button {
 }
 
 .speaker-toggle-switch.on {
-    background: rgba(74, 74, 255, 0.55);
-    border-color: rgba(74, 74, 255, 0.8);
-    box-shadow: 0 0 0 1px rgba(74, 74, 255, 0.25),
+    background: rgba(91, 94, 240, 0.55);
+    border-color: rgba(91, 94, 240, 0.8);
+    box-shadow: 0 0 0 1px rgba(91, 94, 240, 0.25),
                 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
 .speaker-toggle-switch:focus-visible {
-    box-shadow: 0 0 0 2px rgba(74, 74, 255, 0.35);
+    box-shadow: 0 0 0 2px rgba(91, 94, 240, 0.35);
 }
 
 .speaker-toggle-switch:disabled {
