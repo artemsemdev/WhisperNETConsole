@@ -1295,30 +1295,33 @@ button {
 }
 
 .format-picker-segments {
-    display: flex;
-    background: rgba(22, 33, 62, 0.6);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 3px;
     gap: 2px;
 }
 
 .format-segment {
     position: relative;
-    padding: 6px 16px;
+    padding: 7px 0;
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     font-family: var(--font-family);
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
     color: var(--text-muted);
     background: transparent;
-    border: 1px solid transparent;
-    border-radius: 6px;
+    border: 0;
+    border-radius: 7px;
     cursor: pointer;
     outline: none;
+    text-align: center;
     transition: color var(--transition-fast),
                 background var(--transition-fast),
-                border-color var(--transition-fast),
                 box-shadow var(--transition-fast);
 }
 
@@ -1328,10 +1331,9 @@ button {
 }
 
 .format-segment-active {
-    color: var(--text-primary);
-    background: rgba(91, 94, 240, 0.12);
-    border-color: rgba(91, 94, 240, 0.25);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    color: #ffffff;
+    background: var(--accent);
+    box-shadow: 0 2px 8px rgba(91, 94, 240, 0.35);
 }
 
 .format-segment:disabled {
@@ -1383,28 +1385,25 @@ button {
 .speaker-toggle-switch {
     position: relative;
     flex: 0 0 auto;
-    width: 36px;
-    height: 20px;
+    width: 40px;
+    height: 24px;
     padding: 0;
-    border: 1px solid var(--border);
+    border: 0;
     border-radius: 999px;
-    background: rgba(42, 42, 74, 0.8);
+    background: rgba(42, 42, 74, 0.9);
     cursor: pointer;
     outline: none;
     transition: background var(--transition-fast),
-                border-color var(--transition-fast),
                 box-shadow var(--transition-fast);
 }
 
 .speaker-toggle-switch.on {
-    background: rgba(91, 94, 240, 0.55);
-    border-color: rgba(91, 94, 240, 0.8);
-    box-shadow: 0 0 0 1px rgba(91, 94, 240, 0.25),
-                0 1px 4px rgba(0, 0, 0, 0.25);
+    background: var(--accent);
+    box-shadow: 0 2px 8px rgba(91, 94, 240, 0.35);
 }
 
 .speaker-toggle-switch:focus-visible {
-    box-shadow: 0 0 0 2px rgba(91, 94, 240, 0.35);
+    box-shadow: 0 0 0 2px rgba(91, 94, 240, 0.45);
 }
 
 .speaker-toggle-switch:disabled {
@@ -1415,20 +1414,19 @@ button {
 .speaker-toggle-thumb {
     position: absolute;
     top: 50%;
-    left: 2px;
-    width: 14px;
-    height: 14px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
-    background: var(--text-primary);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
     transform: translateY(-50%);
     transition: left var(--transition-fast),
                 background var(--transition-fast);
 }
 
 .speaker-toggle-switch.on .speaker-toggle-thumb {
-    left: 18px;
-    background: #ffffff;
+    left: 19px;
 }
 
 /* ---------- Blazor Error UI ---------- */
