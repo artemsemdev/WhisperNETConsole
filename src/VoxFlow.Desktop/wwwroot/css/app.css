@@ -241,47 +241,65 @@ html, body {
     transform: scale(1.01);
 }
 
-/* Central circle and ripple container */
+/* Central pad (180x180) with two decorative rings framing it. The ripple
+   waves still anchor to this 180x180 box so the existing
+   @keyframes ripple-wave scale 1→2.5 reaches the outer ring and beyond. */
 .drop-zone-visual {
     position: relative;
-    width: 240px;
-    height: 240px;
-    margin-bottom: 32px;
+    width: 180px;
+    height: 180px;
+    margin: 32px 0 40px;
 }
 
-/* Subtle outer ring */
+/* Outer decorative ring (240x240) */
 .drop-zone-visual::before {
     content: '';
     position: absolute;
-    inset: -12px;
+    inset: -30px;
     border-radius: 50%;
-    border: 1px solid rgba(91, 94, 240, 0.06);
+    border: 1px solid rgba(91, 94, 240, 0.18);
+    pointer-events: none;
+}
+
+/* Outer-most decorative ring (300x300) */
+.drop-zone-visual::after {
+    content: '';
+    position: absolute;
+    inset: -60px;
+    border-radius: 50%;
+    border: 1px solid rgba(91, 94, 240, 0.08);
+    pointer-events: none;
 }
 
 .drop-zone-circle {
     position: absolute;
     inset: 0;
     border-radius: 50%;
-    background: rgba(22, 33, 62, 0.7);
-    border: 1.5px solid rgba(91, 94, 240, 0.15);
+    background:
+        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18), transparent 55%),
+        linear-gradient(135deg, var(--accent) 0%, var(--accent-active) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--accent);
+    color: var(--text-primary);
     z-index: 1;
     box-shadow:
-        0 4px 20px rgba(0, 0, 0, 0.3),
-        inset 0 1px 3px rgba(255, 255, 255, 0.03);
-    transition: border-color var(--transition-normal),
-                box-shadow var(--transition-normal),
+        0 16px 40px rgba(91, 94, 240, 0.35),
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        inset 0 1px 2px rgba(255, 255, 255, 0.25),
+        inset 0 -6px 14px rgba(0, 0, 0, 0.25);
+    transition: box-shadow var(--transition-normal),
                 transform var(--transition-normal);
 }
 
 .drop-zone:hover .drop-zone-circle {
-    border-color: rgba(91, 94, 240, 0.3);
     box-shadow:
-        0 4px 30px rgba(91, 94, 240, 0.12),
-        inset 0 1px 3px rgba(255, 255, 255, 0.03);
+        0 20px 48px rgba(91, 94, 240, 0.45),
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        inset 0 1px 2px rgba(255, 255, 255, 0.3),
+        inset 0 -6px 14px rgba(0, 0, 0, 0.25);
+    transform: scale(1.02);
 }
 
 /* Ripple waves */
@@ -327,9 +345,12 @@ html, body {
 }
 
 .drop-zone.drag-over .drop-zone-circle {
-    border-color: rgba(91, 94, 240, 0.5);
-    box-shadow: 0 0 40px rgba(91, 94, 240, 0.2);
-    transform: scale(1.08);
+    box-shadow:
+        0 24px 56px rgba(91, 94, 240, 0.55),
+        0 4px 14px rgba(0, 0, 0, 0.45),
+        inset 0 1px 2px rgba(255, 255, 255, 0.35),
+        inset 0 -6px 14px rgba(0, 0, 0, 0.2);
+    transform: scale(1.06);
 }
 
 .drop-zone.drag-over .ripple {
@@ -350,7 +371,8 @@ html, body {
 
 .drop-zone-disabled .drop-zone-circle {
     opacity: 0.35;
-    border-color: var(--border);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    transform: none;
 }
 
 .drop-zone-disabled .ripple {
