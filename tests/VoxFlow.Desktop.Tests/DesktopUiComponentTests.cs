@@ -827,11 +827,11 @@ public sealed class DesktopUiComponentTests
 
         var progressWrapper = rendered.FindElement(
             element => element.Name == "div"
-                       && element.HasClass("phase-ring")
+                       && element.HasClass("phase-ring-stack")
                        && element.Attributes.ContainsKey("role")
                        && element.Attributes.TryGetValue("aria-label", out var label)
                        && label?.ToString() == "Transcription progress",
-            "transcription phase ring with progressbar role");
+            "phase-ring-stack progressbar");
 
         Assert.Equal("progressbar", progressWrapper.Attributes["role"]?.ToString());
         // Transcribing at 45% overall → Transcription-local 50% (banding 0..90)

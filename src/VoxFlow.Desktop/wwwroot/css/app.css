@@ -397,36 +397,123 @@ html, body {
     pointer-events: none;
 }
 
-/* ---------- Phase Ring Tracker (ADR-024) ---------- */
+/* ---------- Phase Ring Tracker (ADR-024 P2.3 redesign) ----------
+   Nested concentric arcs: outer r=92 (Transcription, purple),
+   middle r=72 (Diarization, cyan), inner r=52 (Merge, green).
+   A 3D center pad displays the currently-focused phase's percent
+   and an uppercase stage label. */
 .phase-ring-stack {
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    gap: 4px;
+    position: relative;
+    width: 240px;
+    height: 240px;
+    margin: 0 auto 32px;
+}
+
+.phase-ring-stack .phase-ring-svg {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    margin: 0 auto 24px;
+    height: 100%;
+    transform: rotate(-90deg);
 }
 
-.phase-ring-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 0 0 auto;
-    min-width: 160px;
+.phase-ring-stack .phase-track {
+    fill: none;
+    stroke: var(--phase-track);
+    stroke-width: 10;
 }
 
-.phase-ring-chevron {
+.phase-arc {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition:
+        stroke-dashoffset 400ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        stroke 250ms ease,
+        filter 250ms ease;
+}
+
+.phase-arc.phase-arc-running {
+    filter: drop-shadow(0 0 6px currentColor)
+            drop-shadow(0 0 2px currentColor);
+    animation: phase-arc-breathe 2.4s ease-in-out infinite;
+}
+
+.phase-arc.phase-arc-failed {
+    filter: drop-shadow(0 0 4px var(--phase-failed));
+}
+
+@keyframes phase-arc-breathe {
+    0%, 100% {
+        filter: drop-shadow(0 0 5px currentColor)
+                drop-shadow(0 0 1px currentColor);
+    }
+    50% {
+        filter: drop-shadow(0 0 14px currentColor)
+                drop-shadow(0 0 3px currentColor);
+    }
+}
+
+.phase-center {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    align-self: stretch;
-    width: 24px;
-    min-height: 140px;
+    pointer-events: none;
+}
+
+.phase-center-pad {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.12), transparent 60%),
+        linear-gradient(135deg, var(--bg-raised) 0%, var(--bg-secondary) 100%);
+    border: 1px solid var(--line-strong);
+    box-shadow:
+        0 10px 24px rgba(0, 0, 0, 0.45),
+        inset 0 1px 2px rgba(255, 255, 255, 0.12),
+        inset 0 -4px 10px rgba(0, 0, 0, 0.25);
+    display: grid;
+    grid-template-rows: auto auto;
+    align-items: center;
+    justify-items: center;
+    text-align: center;
+    padding: 10px 4px 6px;
+}
+
+.phase-center-percent {
+    grid-row: 1;
+    grid-column: 1;
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.phase-center-unit {
+    grid-row: 1;
+    grid-column: 1;
+    align-self: start;
+    justify-self: end;
+    margin-top: 2px;
+    margin-right: -10px;
+    font-size: 11px;
     color: var(--text-muted);
-    font-size: 22px;
-    font-weight: 300;
-    opacity: 0.55;
-    user-select: none;
+}
+
+.phase-center-label {
+    grid-row: 2;
+    grid-column: 1;
+    margin-top: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
 }
 
 .phase-ring {
@@ -547,19 +634,6 @@ html, body {
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.03em;
     margin: 0;
-}
-
-@media (max-width: 720px) {
-    .phase-ring-stack {
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-    }
-    .phase-ring-chevron {
-        min-height: 0;
-        height: 16px;
-        transform: rotate(90deg);
-    }
 }
 
 /* ---------- Organic Circular Progress ---------- */
