@@ -209,12 +209,19 @@
         Condition="Exists('$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/ggml-metal.metal')" />
       <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/runtimes/macos-x64/**/*" />
       <BundledCliFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/runtimes/macos-arm64/**/*" />
+      <BundledCliSidecarFiles Include="$(MSBuildProjectDirectory)/../VoxFlow.Cli/bin/$(Configuration)/net9.0/python/**/*" />
     </ItemGroup>
 
     <MakeDir Directories="$(MSBuildProjectDirectory)/$(_AppBundlePath)/Contents/MonoBundle/cli" />
     <Copy
       SourceFiles="@(BundledCliFiles)"
       DestinationFiles="@(BundledCliFiles->'$(MSBuildProjectDirectory)/$(_AppBundlePath)/Contents/MonoBundle/cli/%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+
+    <MakeDir Directories="$(MSBuildProjectDirectory)/$(_AppBundlePath)/Contents/MonoBundle/cli/python" />
+    <Copy
+      SourceFiles="@(BundledCliSidecarFiles)"
+      DestinationFiles="@(BundledCliSidecarFiles->'$(MSBuildProjectDirectory)/$(_AppBundlePath)/Contents/MonoBundle/cli/python/%(RecursiveDir)%(Filename)%(Extension)')"
       SkipUnchangedFiles="true" />
   </Target>
 
