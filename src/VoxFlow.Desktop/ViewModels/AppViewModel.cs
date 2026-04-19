@@ -25,6 +25,8 @@ public class AppViewModel : INotifyPropertyChanged
     private string? _lastFilePath;
     private CancellationTokenSource? _cts;
     private ResultFormat _selectedResultFormat = ResultFormat.Txt;
+    private bool _speakerLabelingEnabled;
+    private readonly PhaseProgressTracker _phaseTracker = new(speakerLabelingEnabled: false);
 
     public AppViewModel(
         ITranscriptionService transcriptionService,
@@ -50,6 +52,20 @@ public class AppViewModel : INotifyPropertyChanged
         {
             if (_selectedResultFormat == value) return;
             _selectedResultFormat = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Whether the local speaker-labeling enrichment pipeline is enabled for the next run.
+    /// </summary>
+    public bool SpeakerLabelingEnabled
+    {
+        get => _speakerLabelingEnabled;
+        set
+        {
+            if (_speakerLabelingEnabled == value) return;
+            _speakerLabelingEnabled = value;
             OnPropertyChanged();
         }
     }
@@ -84,8 +100,20 @@ public class AppViewModel : INotifyPropertyChanged
     public ProgressUpdate? CurrentProgress
     {
         get => _currentProgress;
-        set { _currentProgress = value; OnPropertyChanged(); }
+        set
+        {
+            _currentProgress = value;
+            if (value is not null) _phaseTracker.OnProgress(value);
+            OnPropertyChanged();
+        }
     }
+
+    /// <summary>
+    /// Per-phase progress tracker backing the three-ring Running screen.
+    /// Reset at the start of each run with the current
+    /// <see cref="SpeakerLabelingEnabled"/> value.
+    /// </summary>
+    public PhaseProgressTracker PhaseTracker => _phaseTracker;
 
     public string? ErrorMessage
     {
@@ -148,7 +176,13 @@ public class AppViewModel : INotifyPropertyChanged
     public async Task InitializeAsync()
     {
         var options = await _configService.LoadAsync();
-        SelectedResultFormat = options.ResultFormat;
+        // Seed backing fields directly so the single re-render triggered by
+        // ValidationResult/CurrentState below sees the final values. Firing
+        // OnPropertyChanged here would schedule an extra render cycle before
+        // validation completes, which races with components that observe
+        // HasWarnings / HasBlockingValidationErrors on first render.
+        _selectedResultFormat = options.ResultFormat;
+        _speakerLabelingEnabled = options.SpeakerLabeling.Enabled;
         var result = await _validationService.ValidateAsync(options);
         ValidationResult = result;
         CurrentState = AppState.Ready;
@@ -171,6 +205,7 @@ public class AppViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(CurrentFileName));
         TranscriptionResult = null;
         CurrentProgress = null;
+        _phaseTracker.Reset(SpeakerLabelingEnabled);
         ErrorMessage = null;
         CurrentState = AppState.Running;
         _cts?.Dispose();
@@ -193,7 +228,10 @@ public class AppViewModel : INotifyPropertyChanged
 
         try
         {
-            var request = new TranscribeFileRequest(filePath, ResultFilePath: resultFilePath);
+            var request = new TranscribeFileRequest(
+                filePath,
+                ResultFilePath: resultFilePath,
+                EnableSpeakers: SpeakerLabelingEnabled ? true : null);
             TranscriptionResult = await _transcriptionService.TranscribeFileAsync(request, progress, cts.Token);
             if (TranscriptionResult.Success)
             {

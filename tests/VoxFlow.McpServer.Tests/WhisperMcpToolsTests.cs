@@ -45,6 +45,96 @@ public sealed class WhisperMcpToolsTests
     }
 
     [Fact]
+    public async Task TranscribeFileAsync_ForwardsEnableSpeakersTrue()
+    {
+        var capture = new CapturingTranscriptionService();
+        var tempDir = CreateTempDirectory();
+
+        try
+        {
+            var inputRoot = Path.Combine(tempDir, "input");
+            Directory.CreateDirectory(inputRoot);
+            var inputPath = Path.Combine(inputRoot, "demo.m4a");
+            await File.WriteAllTextAsync(inputPath, "stub");
+
+            var tools = CreateToolsWithTranscription(
+                capture,
+                new PathPolicy(
+                    allowedInputRoots: [inputRoot],
+                    allowedOutputRoots: Array.Empty<string>()));
+
+            await tools.TranscribeFileAsync(inputPath, enableSpeakers: true);
+
+            Assert.NotNull(capture.LastRequest);
+            Assert.True(capture.LastRequest!.EnableSpeakers);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDir);
+        }
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_ForwardsEnableSpeakersFalse()
+    {
+        var capture = new CapturingTranscriptionService();
+        var tempDir = CreateTempDirectory();
+
+        try
+        {
+            var inputRoot = Path.Combine(tempDir, "input");
+            Directory.CreateDirectory(inputRoot);
+            var inputPath = Path.Combine(inputRoot, "demo.m4a");
+            await File.WriteAllTextAsync(inputPath, "stub");
+
+            var tools = CreateToolsWithTranscription(
+                capture,
+                new PathPolicy(
+                    allowedInputRoots: [inputRoot],
+                    allowedOutputRoots: Array.Empty<string>()));
+
+            await tools.TranscribeFileAsync(inputPath, enableSpeakers: false);
+
+            Assert.NotNull(capture.LastRequest);
+            Assert.False(capture.LastRequest!.EnableSpeakers);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDir);
+        }
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_OmittedEnableSpeakers_ForwardsNull()
+    {
+        var capture = new CapturingTranscriptionService();
+        var tempDir = CreateTempDirectory();
+
+        try
+        {
+            var inputRoot = Path.Combine(tempDir, "input");
+            Directory.CreateDirectory(inputRoot);
+            var inputPath = Path.Combine(inputRoot, "demo.m4a");
+            await File.WriteAllTextAsync(inputPath, "stub");
+
+            var tools = CreateToolsWithTranscription(
+                capture,
+                new PathPolicy(
+                    allowedInputRoots: [inputRoot],
+                    allowedOutputRoots: Array.Empty<string>()));
+
+            await tools.TranscribeFileAsync(inputPath);
+
+            Assert.NotNull(capture.LastRequest);
+            Assert.Null(capture.LastRequest!.EnableSpeakers);
+        }
+        finally
+        {
+            DeleteTempDirectory(tempDir);
+        }
+    }
+
+    [Fact]
     public async Task ReadTranscriptAsync_PathOutsideAllowedOutputRoots_ReturnsError()
     {
         var tempDir = CreateTempDirectory();
@@ -82,6 +172,43 @@ public sealed class WhisperMcpToolsTests
             transcriptReader,
             pathPolicy,
             Options.Create(new McpOptions()));
+    }
+
+    private static WhisperMcpTools CreateToolsWithTranscription(
+        ITranscriptionService transcriptionService,
+        IPathPolicy pathPolicy)
+    {
+        return new WhisperMcpTools(
+            transcriptionService,
+            new NotUsedBatchTranscriptionService(),
+            new NotUsedValidationService(),
+            new NotUsedModelService(),
+            new NotUsedConfigurationService(),
+            new StubTranscriptReader(),
+            pathPolicy,
+            Options.Create(new McpOptions()));
+    }
+
+    private sealed class CapturingTranscriptionService : ITranscriptionService
+    {
+        public TranscribeFileRequest? LastRequest { get; private set; }
+
+        public Task<TranscribeFileResult> TranscribeFileAsync(
+            TranscribeFileRequest request,
+            IProgress<ProgressUpdate>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+            return Task.FromResult(new TranscribeFileResult(
+                Success: true,
+                DetectedLanguage: "en",
+                ResultFilePath: null,
+                AcceptedSegmentCount: 0,
+                SkippedSegmentCount: 0,
+                Duration: TimeSpan.Zero,
+                Warnings: Array.Empty<string>(),
+                TranscriptPreview: null));
+        }
     }
 
     private sealed class StubTranscriptReader : ITranscriptReader

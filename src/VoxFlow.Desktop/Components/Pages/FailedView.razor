@@ -1,7 +1,13 @@
+@using VoxFlow.Desktop.Components.Shared
 @inject AppViewModel ViewModel
 
-<div class="text-center" id="failed-screen" aria-label="Failed Screen">
-    <h2>Transcription Failed</h2>
+<div class="page-column" id="failed-screen" aria-label="Failed Screen">
+
+    <TopBar />
+
+    <div class="text-center">
+        <h2>Transcription Failed</h2>
+    </div>
 </div>
 
 @if (!string.IsNullOrEmpty(ViewModel.ErrorMessage))

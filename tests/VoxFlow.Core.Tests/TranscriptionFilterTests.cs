@@ -146,6 +146,138 @@ public sealed class TranscriptionFilterTests
     }
 
     [Fact]
+    public void FilterSegments_PreservesWordTokens_FromAcceptedSegments()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: "/tmp/input.m4a",
+            wavFilePath: "/tmp/output.wav",
+            resultFilePath: "/tmp/result.txt",
+            modelFilePath: "/tmp/model.bin",
+            ffmpegExecutablePath: "ffmpeg");
+
+        var options = TranscriptionOptions.LoadFromPath(settingsPath);
+        var language = new SupportedLanguage("en", "English", 0);
+        var filter = new TranscriptionFilter();
+
+        var tokens = new[]
+        {
+            CreateToken("Hello", start: 0, end: 50),
+            CreateToken(" world", start: 50, end: 110),
+            CreateToken("!", start: 110, end: 130)
+        };
+
+        var segments = new[]
+        {
+            CreateSegmentWithTokens("Hello world!", 0.95f, durationSeconds: 2, tokens)
+        };
+
+        var result = filter.FilterSegments(language, segments, options);
+
+        var accepted = Assert.Single(result.Accepted);
+        Assert.Equal(3, accepted.Words.Count);
+        Assert.Equal("Hello", accepted.Words[0].Text);
+        Assert.Equal(0, accepted.Words[0].Start);
+        Assert.Equal(50, accepted.Words[0].End);
+        Assert.Equal(" world", accepted.Words[1].Text);
+        Assert.Equal("!", accepted.Words[2].Text);
+        Assert.Equal(110, accepted.Words[2].Start);
+        Assert.Equal(130, accepted.Words[2].End);
+    }
+
+    [Fact]
+    public void FilterSegments_SkippedSegmentDoesNotLeakTokens_ToAcceptedNeighbor()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: "/tmp/input.m4a",
+            wavFilePath: "/tmp/output.wav",
+            resultFilePath: "/tmp/result.txt",
+            modelFilePath: "/tmp/model.bin",
+            ffmpegExecutablePath: "ffmpeg");
+
+        var options = TranscriptionOptions.LoadFromPath(settingsPath);
+        var language = new SupportedLanguage("en", "English", 0);
+        var filter = new TranscriptionFilter();
+
+        var noiseTokens = new[]
+        {
+            CreateToken("[music]", start: 0, end: 100)
+        };
+        var speechTokens = new[]
+        {
+            CreateToken("Hello", start: 100, end: 150),
+            CreateToken(" world", start: 150, end: 210)
+        };
+
+        var segments = new[]
+        {
+            CreateSegmentWithTokens("[music]", 0.90f, durationSeconds: 1, noiseTokens),
+            CreateSegmentWithTokens("Hello world", 0.90f, durationSeconds: 2, speechTokens)
+        };
+
+        var result = filter.FilterSegments(language, segments, options);
+
+        var accepted = Assert.Single(result.Accepted);
+        Assert.Equal("Hello world", accepted.Text);
+        Assert.Equal(2, accepted.Words.Count);
+        Assert.Equal("Hello", accepted.Words[0].Text);
+        Assert.Equal(" world", accepted.Words[1].Text);
+        Assert.DoesNotContain(accepted.Words, token => token.Text == "[music]");
+    }
+
+    [Fact]
+    public void FilterSegments_DuplicateLoopFilter_DropsTokensAlongsideSegment()
+    {
+        using var directory = new TemporaryDirectory();
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: "/tmp/input.m4a",
+            wavFilePath: "/tmp/output.wav",
+            resultFilePath: "/tmp/result.txt",
+            modelFilePath: "/tmp/model.bin",
+            ffmpegExecutablePath: "ffmpeg");
+
+        var options = TranscriptionOptions.LoadFromPath(settingsPath);
+        var language = new SupportedLanguage("en", "English", 0);
+        var filter = new TranscriptionFilter();
+
+        var firstLoopTokens = new[] { CreateToken("Repeat.", start: 0, end: 50) };
+        var secondLoopTokens = new[] { CreateToken("Repeat.", start: 200, end: 250) };
+        var thirdLoopTokens = new[] { CreateToken("Repeat.", start: 400, end: 450) };
+        var droppedLoopTokens = new[] { CreateToken("Repeat.", start: 600, end: 650) };
+
+        var segments = new[]
+        {
+            CreateSegmentWithTokens("Repeat.", 0.90f, durationSeconds: 2, firstLoopTokens),
+            CreateSegmentWithTokens("Repeat.", 0.90f, durationSeconds: 2, secondLoopTokens),
+            CreateSegmentWithTokens("Repeat.", 0.90f, durationSeconds: 2, thirdLoopTokens),
+            CreateSegmentWithTokens("Repeat.", 0.90f, durationSeconds: 2, droppedLoopTokens)
+        };
+
+        var result = filter.FilterSegments(language, segments, options);
+
+        // Default MaxConsecutiveDuplicateSegments is 2: first two copies stay,
+        // the 3rd and 4th are routed to Skipped with RepetitiveLoop.
+        Assert.Equal(2, result.Accepted.Count);
+        Assert.Single(result.Accepted[0].Words);
+        Assert.Equal(0, result.Accepted[0].Words[0].Start);
+        Assert.Single(result.Accepted[1].Words);
+        Assert.Equal(200, result.Accepted[1].Words[0].Start);
+
+        Assert.Equal(2, result.Skipped.Count);
+        Assert.All(result.Skipped, skipped =>
+            Assert.Equal(SegmentSkipReason.RepetitiveLoop, skipped.Reason));
+
+        // None of the accepted segments should have inherited the 3rd or 4th copy's tokens.
+        Assert.DoesNotContain(
+            result.Accepted.SelectMany(segment => segment.Words),
+            token => token.Start == 400 || token.Start == 600);
+    }
+
+    [Fact]
     public void FilterSegments_ReturnsEmptyForEmptyInput()
     {
         using var directory = new TemporaryDirectory();
@@ -169,6 +301,15 @@ public sealed class TranscriptionFilterTests
 
     private static SegmentData CreateSegment(string text, float probability, int durationSeconds)
     {
+        return CreateSegmentWithTokens(text, probability, durationSeconds, Array.Empty<WhisperToken>());
+    }
+
+    private static SegmentData CreateSegmentWithTokens(
+        string text,
+        float probability,
+        int durationSeconds,
+        WhisperToken[] tokens)
+    {
         return new SegmentData(
             text,
             TimeSpan.Zero,
@@ -178,6 +319,17 @@ public sealed class TranscriptionFilterTests
             probability,
             probability,
             "en",
-            Array.Empty<WhisperToken>());
+            tokens);
+    }
+
+    private static WhisperToken CreateToken(string text, long start, long end)
+    {
+        return new WhisperToken
+        {
+            Text = text,
+            Start = start,
+            End = end,
+            Probability = 1.0f
+        };
     }
 }

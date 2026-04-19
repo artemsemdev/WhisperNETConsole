@@ -17,6 +17,8 @@ internal sealed class TranscriptionService : ITranscriptionService
     private readonly IWavAudioLoader _wavLoader;
     private readonly ILanguageSelectionService _languageSelection;
     private readonly IOutputWriter _outputWriter;
+    private readonly ISpeakerEnrichmentService _speakerEnrichment;
+    private readonly IVoxflowTranscriptArtifactWriter _artifactWriter;
 
     public TranscriptionService(
         IConfigurationService configService,
@@ -25,7 +27,9 @@ internal sealed class TranscriptionService : ITranscriptionService
         IModelService modelService,
         IWavAudioLoader wavLoader,
         ILanguageSelectionService languageSelection,
-        IOutputWriter outputWriter)
+        IOutputWriter outputWriter,
+        ISpeakerEnrichmentService speakerEnrichment,
+        IVoxflowTranscriptArtifactWriter artifactWriter)
     {
         _configService = configService;
         _validationService = validationService;
@@ -34,6 +38,8 @@ internal sealed class TranscriptionService : ITranscriptionService
         _wavLoader = wavLoader;
         _languageSelection = languageSelection;
         _outputWriter = outputWriter;
+        _speakerEnrichment = speakerEnrichment;
+        _artifactWriter = artifactWriter;
     }
 
     public async Task<TranscribeFileResult> TranscribeFileAsync(
@@ -99,8 +105,45 @@ internal sealed class TranscriptionService : ITranscriptionService
         if (selectionResult.Warning != null)
             warnings.Add(selectionResult.Warning);
 
-        // 7. Write output
-        progress?.Report(new ProgressUpdate(ProgressStage.Writing, 90, stopwatch.Elapsed, "Writing transcript..."));
+        // 7. Speaker enrichment (optional)
+        TranscriptDocument? speakerTranscript = null;
+        IReadOnlyList<string> enrichmentWarnings = Array.Empty<string>();
+        if (ComputeEffectiveSpeakerFlag(request, options))
+        {
+            try
+            {
+                var metadata = new TranscriptMetadata(
+                    SchemaVersion: 1,
+                    DiarizationModel: options.SpeakerLabeling.ModelId,
+                    SidecarVersion: 1);
+                var enrichmentResult = await _speakerEnrichment.EnrichAsync(
+                    wavPath,
+                    selectionResult.AcceptedSegments,
+                    metadata,
+                    options.SpeakerLabeling,
+                    progress,
+                    cancellationToken);
+                speakerTranscript = enrichmentResult.Document;
+                enrichmentWarnings = enrichmentResult.Warnings;
+                if (enrichmentResult.Warnings.Count > 0)
+                {
+                    warnings.AddRange(enrichmentResult.Warnings);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                var warning = $"speaker-labeling: internal error: {ex.Message}";
+                enrichmentWarnings = new[] { warning };
+                warnings.Add(warning);
+            }
+        }
+
+        // 8. Write output
+        progress?.Report(new ProgressUpdate(ProgressStage.Writing, 95, stopwatch.Elapsed, "Writing transcript..."));
 
         var detectedLanguage = $"{selectionResult.Language.DisplayName} ({selectionResult.Language.Code})";
         var outputContext = new TranscriptOutputContext(
@@ -108,13 +151,19 @@ internal sealed class TranscriptionService : ITranscriptionService
             DetectedLanguage: detectedLanguage,
             AcceptedSegmentCount: selectionResult.AcceptedSegments.Count,
             SkippedSegmentCount: selectionResult.SkippedSegments.Count,
-            Warnings: warnings);
+            Warnings: warnings,
+            SpeakerTranscript: speakerTranscript);
 
         await _outputWriter.WriteAsync(resultPath, selectionResult.AcceptedSegments, outputContext, cancellationToken);
 
+        if (speakerTranscript is not null)
+        {
+            await _artifactWriter.WriteAsync(resultPath, speakerTranscript, cancellationToken);
+        }
+
         stopwatch.Stop();
 
-        // 8. Build preview (always as TXT for display)
+        // 9. Build preview (always as TXT for display)
         var previewContext = new TranscriptOutputContext(Format: ResultFormat.Txt);
         var preview = _outputWriter.BuildOutputText(
             selectionResult.AcceptedSegments.Take(10).ToList(), previewContext);
@@ -129,7 +178,9 @@ internal sealed class TranscriptionService : ITranscriptionService
             selectionResult.SkippedSegments.Count,
             stopwatch.Elapsed,
             warnings,
-            preview);
+            preview,
+            SpeakerTranscript: speakerTranscript,
+            EnrichmentWarnings: enrichmentWarnings);
     }
 
     internal static double MapLanguageSelectionPercentToPipelinePercent(double selectionPercent)
@@ -138,6 +189,9 @@ internal sealed class TranscriptionService : ITranscriptionService
         return TranscribingStageStartPercent +
                ((TranscribingStageEndPercent - TranscribingStageStartPercent) * (clamped / 100d));
     }
+
+    private static bool ComputeEffectiveSpeakerFlag(TranscribeFileRequest request, TranscriptionOptions options)
+        => request.EnableSpeakers ?? options.SpeakerLabeling.Enabled;
 
     private static IProgress<ProgressUpdate>? CreateLanguageSelectionProgressReporter(
         IProgress<ProgressUpdate>? progress,

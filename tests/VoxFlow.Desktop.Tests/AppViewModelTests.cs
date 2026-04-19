@@ -66,6 +66,8 @@ internal sealed class StubTranscriptionService : ITranscriptionService
     private readonly Func<TranscribeFileRequest, TranscribeFileResult>? _factory;
     private readonly Exception? _exception;
 
+    public TranscribeFileRequest? LastRequest { get; private set; }
+
     /// <summary>Creates a stub that returns a successful result.</summary>
     public StubTranscriptionService(bool success = true, string[]? warnings = null)
     {
@@ -92,6 +94,7 @@ internal sealed class StubTranscriptionService : ITranscriptionService
         IProgress<ProgressUpdate>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        LastRequest = request;
         if (_exception is not null) throw _exception;
         return Task.FromResult(_factory!(request));
     }
@@ -187,6 +190,117 @@ public sealed class AppViewModelTests
         Assert.Equal(AppState.Ready, vm.CurrentState);
         Assert.NotNull(vm.ValidationResult);
         Assert.False(vm.ValidationResult!.CanStart);
+    }
+
+    // -----------------------------------------------------------------------
+    // P2.1 — SpeakerLabelingEnabled initializes from options
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task InitializeAsync_SpeakerLabelingEnabledInOptions_SetsViewModelFlagTrue()
+    {
+        var settingsPath = ViewModelFactory.ResolveRootSettingsPath();
+        using var configService = new StubConfigurationServiceWithSpeakerLabeling(
+            settingsPath, speakerLabelingEnabled: true);
+        var vm = new AppViewModel(
+            new StubTranscriptionService(success: true),
+            new StubValidationService(true),
+            configService);
+
+        await vm.InitializeAsync();
+
+        Assert.True(vm.SpeakerLabelingEnabled);
+    }
+
+    [Fact]
+    public async Task InitializeAsync_SpeakerLabelingDisabledInOptions_SetsViewModelFlagFalse()
+    {
+        var settingsPath = ViewModelFactory.ResolveRootSettingsPath();
+        using var configService = new StubConfigurationServiceWithSpeakerLabeling(
+            settingsPath, speakerLabelingEnabled: false);
+        var vm = new AppViewModel(
+            new StubTranscriptionService(success: true),
+            new StubValidationService(true),
+            configService);
+
+        await vm.InitializeAsync();
+
+        Assert.False(vm.SpeakerLabelingEnabled);
+    }
+
+    // -----------------------------------------------------------------------
+    // P2.2 — TranscribeFileAsync forwards SpeakerLabelingEnabled to EnableSpeakers
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task TranscribeFileAsync_SpeakerLabelingEnabled_PassesEnableSpeakersTrue()
+    {
+        var stub = new StubTranscriptionService(success: true);
+        var vm = ViewModelFactory.Create(transcriptionService: stub);
+        await vm.InitializeAsync();
+        vm.SpeakerLabelingEnabled = true;
+
+        await vm.TranscribeFileAsync("/tmp/audio.wav");
+
+        Assert.NotNull(stub.LastRequest);
+        Assert.True(stub.LastRequest!.EnableSpeakers);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_SpeakerLabelingDisabled_PassesEnableSpeakersNull()
+    {
+        var stub = new StubTranscriptionService(success: true);
+        var vm = ViewModelFactory.Create(transcriptionService: stub);
+        await vm.InitializeAsync();
+        vm.SpeakerLabelingEnabled = false;
+
+        await vm.TranscribeFileAsync("/tmp/audio.wav");
+
+        Assert.NotNull(stub.LastRequest);
+        Assert.Null(stub.LastRequest!.EnableSpeakers);
+    }
+
+    // -----------------------------------------------------------------------
+    // P2.3d — PhaseTracker integration
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void PhaseTracker_IsExposed_AfterConstruction()
+    {
+        var vm = ViewModelFactory.Create();
+
+        Assert.NotNull(vm.PhaseTracker);
+        Assert.Equal(3, vm.PhaseTracker.Phases.Count);
+    }
+
+    [Fact]
+    public void CurrentProgressSetter_ForwardsToPhaseTracker()
+    {
+        var vm = ViewModelFactory.Create();
+
+        vm.CurrentProgress = new ProgressUpdate(
+            ProgressStage.Transcribing, 45.0, TimeSpan.FromSeconds(3));
+
+        Assert.Equal(PhaseStatus.Running, vm.PhaseTracker.Phases[0].Status);
+        Assert.Equal(50.0, vm.PhaseTracker.Phases[0].LocalPercent, 3);
+    }
+
+    [Fact]
+    public async Task TranscribeFileAsync_ResetsPhaseTracker_BeforeRun()
+    {
+        var vm = ViewModelFactory.Create();
+        await vm.InitializeAsync();
+        vm.CurrentProgress = new ProgressUpdate(
+            ProgressStage.Transcribing, 30.0, TimeSpan.FromSeconds(2));
+        Assert.Equal(PhaseStatus.Running, vm.PhaseTracker.Phases[0].Status);
+
+        vm.SpeakerLabelingEnabled = false;
+        await vm.TranscribeFileAsync("/tmp/audio.wav");
+
+        // After a complete pipeline all phases should be Done or Skipped,
+        // not still "Running" from the stale pre-run state. Diarization is
+        // born Skipped because SpeakerLabelingEnabled=false.
+        Assert.Equal(PhaseStatus.Skipped, vm.PhaseTracker.Phases[1].Status);
     }
 
     // -----------------------------------------------------------------------
@@ -608,6 +722,46 @@ internal sealed class StubConfigurationServiceWithWavPath : IConfigurationServic
         root["transcription"]!.AsObject()["wavFilePath"] = wavPath;
         _modifiedSettingsPath = Path.Combine(Path.GetTempPath(), $"voxflow-test-settings-{Guid.NewGuid():N}.json");
         File.WriteAllText(_modifiedSettingsPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    public Task<TranscriptionOptions> LoadAsync(string? configurationPath = null)
+        => Task.FromResult(TranscriptionOptions.LoadFromPath(configurationPath ?? _modifiedSettingsPath));
+
+    public IReadOnlyList<SupportedLanguage> GetSupportedLanguages(string? configurationPath = null)
+        => LoadAsync(configurationPath).GetAwaiter().GetResult().SupportedLanguages;
+
+    public void Dispose()
+    {
+        try { File.Delete(_modifiedSettingsPath); } catch { }
+    }
+}
+
+/// <summary>
+/// Configuration service that overrides transcription.speakerLabeling.enabled
+/// by rewriting a copy of the root settings file. Mirrors the pattern of
+/// <see cref="StubConfigurationServiceWithWavPath"/>.
+/// </summary>
+internal sealed class StubConfigurationServiceWithSpeakerLabeling : IConfigurationService, IDisposable
+{
+    private readonly string _modifiedSettingsPath;
+
+    public StubConfigurationServiceWithSpeakerLabeling(string settingsPath, bool speakerLabelingEnabled)
+    {
+        var json = File.ReadAllText(settingsPath);
+        var root = JsonNode.Parse(json)!.AsObject();
+        var transcription = root["transcription"]!.AsObject();
+        if (transcription["speakerLabeling"] is not JsonObject speakerLabeling)
+        {
+            speakerLabeling = new JsonObject();
+            transcription["speakerLabeling"] = speakerLabeling;
+        }
+        speakerLabeling["enabled"] = speakerLabelingEnabled;
+        _modifiedSettingsPath = Path.Combine(
+            Path.GetTempPath(),
+            $"voxflow-test-settings-{Guid.NewGuid():N}.json");
+        File.WriteAllText(
+            _modifiedSettingsPath,
+            root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     public Task<TranscriptionOptions> LoadAsync(string? configurationPath = null)

@@ -306,3 +306,27 @@ Desktop UI integration fixtures currently used in the repo:
 - `artifacts/Input/Test 2.m4a`
 
 For real Desktop UI automation, see [docs/runbooks/desktop-ui-automation.md](../runbooks/desktop-ui-automation.md).
+
+### Running `RequiresPython` tests locally
+
+Phase 1 delivered integration tests that drive a real Python sidecar against `pyannote.audio`. They are gated behind both the `Category=RequiresPython` xUnit trait **and** an opt-in environment variable so machines without a full pyannote stack do not see spurious failures.
+
+Prerequisites:
+
+- Python 3.10 or newer (3.12 on Intel Mac; torch dropped macOS x86_64 at 2.3).
+- `pyannote.audio` + pinned dependencies from [src/VoxFlow.Core/Resources/python-requirements.txt](../../src/VoxFlow.Core/Resources/python-requirements.txt):
+  ```bash
+  pip install -r src/VoxFlow.Core/Resources/python-requirements.txt
+  ```
+  Use a dedicated venv you own — do not pollute the system `site-packages`.
+- A Hugging Face access token with the `pyannote/speaker-diarization-3.1` and `pyannote/segmentation-3.0` model licenses accepted.
+
+Run the gated suite:
+
+```bash
+export VOXFLOW_RUN_REQUIRES_PYTHON_TESTS=1
+export HUGGING_FACE_HUB_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxx
+dotnet test VoxFlow.sln --filter "Category=RequiresPython"
+```
+
+Without `VOXFLOW_RUN_REQUIRES_PYTHON_TESTS=1` the tests call `Skip.IfNot(...)` and are reported as skipped instead of executed. Required before merging any PR that touches sidecar, diarization, or `IPythonRuntime` code. Full first-run context, including license acceptance and cache locations, lives in the [speaker labeling runbook](../runbooks/speaker-labeling.md).

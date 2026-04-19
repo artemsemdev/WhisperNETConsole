@@ -48,6 +48,55 @@ public sealed class TranscriptFormatterTests
         Assert.Equal(string.Empty, output);
     }
 
+    [Fact]
+    public void TxtFormatter_WithTwoSpeakerDocument_RendersSpeakerPrefixes()
+    {
+        var formatter = new TxtTranscriptFormatter();
+        var document = BuildTwoSpeakerDocument();
+        var context = DefaultContext with { SpeakerTranscript = document };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.Equal("Speaker A: Hello there", lines[0]);
+        Assert.Equal("Speaker B: General Kenobi", lines[1]);
+    }
+
+    [Fact]
+    public void TxtFormatter_SubwordTokens_AreConcatenated_IntoWholeWords()
+    {
+        // whisper.net emits BPE subwords like " Him", "al", "ayan" for
+        // "Himalayan". The formatter must concatenate tokens as-is (the
+        // leading " " on word-initial tokens already provides the spacing)
+        // rather than space-joining them, which would produce "Him al ayan"
+        // and doubled spaces between words.
+        var formatter = new TxtTranscriptFormatter();
+        var document = BuildSubwordSpeakerDocument();
+        var context = DefaultContext with { SpeakerTranscript = document };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("Speaker A: Pink Himalayan salt", output);
+        Assert.DoesNotContain("Him al ayan", output);
+        Assert.DoesNotContain("  ", output);
+    }
+
+    [Fact]
+    public void TxtFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new TxtTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.Contains("->", withoutSpeakers);
+        Assert.Contains(": Hello, this is a test.", withoutSpeakers);
+        Assert.DoesNotContain("Speaker", withoutSpeakers);
+    }
+
     // -----------------------------------------------------------------------
     // SRT formatter
     // -----------------------------------------------------------------------
@@ -89,6 +138,33 @@ public sealed class TranscriptFormatterTests
         Assert.Equal(string.Empty, output);
     }
 
+    [Fact]
+    public void SrtFormatter_WithTwoSpeakerDocument_RendersSpeakerPrefixes()
+    {
+        var formatter = new SrtTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildSampleAlignedDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("00:00:01,200 --> 00:00:03,800", output);
+        Assert.Contains("Speaker A: Hello, this is a test.", output);
+        Assert.Contains("00:00:05,000 --> 00:00:08,500", output);
+        Assert.Contains("Speaker B: Second line here.", output);
+    }
+
+    [Fact]
+    public void SrtFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new SrtTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.DoesNotContain("Speaker", withoutSpeakers);
+    }
+
     // -----------------------------------------------------------------------
     // VTT formatter
     // -----------------------------------------------------------------------
@@ -127,6 +203,31 @@ public sealed class TranscriptFormatterTests
         var output = formatter.Format(Array.Empty<FilteredSegment>(), DefaultContext);
 
         Assert.StartsWith("WEBVTT", output);
+    }
+
+    [Fact]
+    public void VttFormatter_WithTwoSpeakerDocument_RendersVoiceTags()
+    {
+        var formatter = new VttTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildSampleAlignedDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("<v Speaker A>Hello, this is a test.", output);
+        Assert.Contains("<v Speaker B>Second line here.", output);
+    }
+
+    [Fact]
+    public void VttFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new VttTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.DoesNotContain("<v ", withoutSpeakers);
     }
 
     // -----------------------------------------------------------------------
@@ -174,6 +275,48 @@ public sealed class TranscriptFormatterTests
         Assert.Equal("00:00:01.200", first.GetProperty("start").GetString());
         Assert.Equal("00:00:03.800", first.GetProperty("end").GetString());
         Assert.Equal("Hello, this is a test.", first.GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public void JsonFormatter_WithTwoSpeakerDocument_IncludesSpeakerTranscript()
+    {
+        var formatter = new JsonTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildTwoSpeakerDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        using var doc = JsonDocument.Parse(output);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("speakerTranscript", out var speakerTranscript),
+            "expected top-level speakerTranscript property");
+
+        var speakers = speakerTranscript.GetProperty("speakers");
+        Assert.Equal(2, speakers.GetArrayLength());
+        Assert.Equal("A", speakers[0].GetProperty("id").GetString());
+        Assert.Equal("B", speakers[1].GetProperty("id").GetString());
+
+        var turns = speakerTranscript.GetProperty("turns");
+        Assert.Equal(2, turns.GetArrayLength());
+        Assert.Equal("A", turns[0].GetProperty("speakerId").GetString());
+        Assert.Equal("B", turns[1].GetProperty("speakerId").GetString());
+
+        // Existing segment-based shape must still be present.
+        Assert.Equal(2, root.GetProperty("segments").GetArrayLength());
+    }
+
+    [Fact]
+    public void JsonFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new JsonTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        using var doc = JsonDocument.Parse(withoutSpeakers);
+        Assert.False(doc.RootElement.TryGetProperty("speakerTranscript", out _));
     }
 
     [Fact]
@@ -234,9 +377,124 @@ public sealed class TranscriptFormatterTests
         Assert.DoesNotContain("{", output);
     }
 
+    [Fact]
+    public void MdFormatter_WithTwoSpeakerDocument_RendersSpeakerPrefixes()
+    {
+        var formatter = new MdTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildTwoSpeakerDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("**Speaker A:** Hello there", output);
+        Assert.Contains("**Speaker B:** General Kenobi", output);
+    }
+
+    [Fact]
+    public void MdFormatter_SubwordTokens_AreConcatenated_IntoWholeWords()
+    {
+        // See TxtFormatter_SubwordTokens_AreConcatenated_IntoWholeWords --
+        // same rationale applies here. The markdown turn must render the
+        // joined word ("Himalayan"), not the raw subword pieces.
+        var formatter = new MdTranscriptFormatter();
+        var context = DefaultContext with { SpeakerTranscript = BuildSubwordSpeakerDocument() };
+
+        var output = formatter.Format(SampleSegments, context);
+
+        Assert.Contains("**Speaker A:** Pink Himalayan salt", output);
+        Assert.DoesNotContain("Him al ayan", output);
+        Assert.DoesNotContain("**Speaker A:**  ", output);
+    }
+
+    [Fact]
+    public void MdFormatter_WithNullSpeakerTranscript_ProducesLegacyOutputUnchanged()
+    {
+        var formatter = new MdTranscriptFormatter();
+        var withoutSpeakers = formatter.Format(SampleSegments, DefaultContext);
+        var explicitNull = formatter.Format(
+            SampleSegments,
+            DefaultContext with { SpeakerTranscript = null });
+
+        Assert.Equal(withoutSpeakers, explicitNull);
+        Assert.DoesNotContain("**Speaker", withoutSpeakers);
+    }
+
     // -----------------------------------------------------------------------
     // TranscriptFormatterFactory
     // -----------------------------------------------------------------------
+
+    private static TranscriptDocument BuildSampleAlignedDocument()
+    {
+        // Two turns whose intervals align with SampleSegments, so SRT/VTT
+        // segment→speaker overlap mapping is unambiguous.
+        var words = new[]
+        {
+            new TranscriptWord(TimeSpan.FromMilliseconds(1200), TimeSpan.FromMilliseconds(3800), "first", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(5), TimeSpan.FromMilliseconds(8500), "second", "B")
+        };
+        var turns = SpeakerTurn.GroupConsecutive(words);
+        var speakers = new[]
+        {
+            new SpeakerInfo("A", "A", TimeSpan.FromMilliseconds(2600)),
+            new SpeakerInfo("B", "B", TimeSpan.FromMilliseconds(3500))
+        };
+        return new TranscriptDocument(
+            speakers,
+            words,
+            turns,
+            new TranscriptMetadata(1, "pyannote/test", 1));
+    }
+
+    private static TranscriptDocument BuildTwoSpeakerDocument()
+    {
+        // whisper.cpp/whisper.net emit BPE subword tokens, not whole words.
+        // Word-initial tokens carry a leading " " (the decoded "▁" marker);
+        // subword continuations do not. The fixture reflects that reality so
+        // the formatter test can detect any regression that reintroduces
+        // space-joining ("Hello  there") or subword splitting ("Hell o there").
+        var words = new[]
+        {
+            new TranscriptWord(TimeSpan.FromSeconds(0), TimeSpan.FromSeconds(1), "Hello", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), " there", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3), " General", "B"),
+            new TranscriptWord(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(4), " Kenobi", "B")
+        };
+        var turns = SpeakerTurn.GroupConsecutive(words);
+        var speakers = new[]
+        {
+            new SpeakerInfo("A", "A", TimeSpan.FromSeconds(2)),
+            new SpeakerInfo("B", "B", TimeSpan.FromSeconds(2))
+        };
+        return new TranscriptDocument(
+            speakers,
+            words,
+            turns,
+            new TranscriptMetadata(1, "pyannote/test", 1));
+    }
+
+    private static TranscriptDocument BuildSubwordSpeakerDocument()
+    {
+        // Real whisper output for "Himalayan" is three BPE pieces: " Him",
+        // "al", "ayan". The formatter must concatenate them so the rendered
+        // word is "Himalayan", not "Him al ayan".
+        var words = new[]
+        {
+            new TranscriptWord(TimeSpan.FromSeconds(0),   TimeSpan.FromSeconds(0.2), " Pink", "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.2), TimeSpan.FromSeconds(0.4), " Him",  "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.4), TimeSpan.FromSeconds(0.5), "al",    "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.5), TimeSpan.FromSeconds(0.7), "ayan",  "A"),
+            new TranscriptWord(TimeSpan.FromSeconds(0.7), TimeSpan.FromSeconds(1.0), " salt", "A")
+        };
+        var turns = SpeakerTurn.GroupConsecutive(words);
+        var speakers = new[]
+        {
+            new SpeakerInfo("A", "A", TimeSpan.FromSeconds(1))
+        };
+        return new TranscriptDocument(
+            speakers,
+            words,
+            turns,
+            new TranscriptMetadata(1, "pyannote/test", 1));
+    }
 
     [Theory]
     [InlineData(ResultFormat.Txt)]

@@ -38,7 +38,8 @@ internal static class TestSettingsFileFactory
         int maxDuplicateSegmentTextLength = 32,
         string processingMode = "single",
         object? batch = null,
-        string? resultFormat = null)
+        string? resultFormat = null,
+        object? speakerLabeling = null)
     {
         supportedLanguages ??=
         [
@@ -121,6 +122,11 @@ internal static class TestSettingsFileFactory
         if (batch != null)
         {
             transcription["batch"] = batch;
+        }
+
+        if (speakerLabeling != null)
+        {
+            transcription["speakerLabeling"] = speakerLabeling;
         }
 
         var configurationData = new Dictionary<string, object?>

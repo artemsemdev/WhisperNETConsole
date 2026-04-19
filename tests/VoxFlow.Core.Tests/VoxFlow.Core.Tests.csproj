@@ -15,6 +15,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="NJsonSchema" Version="11.1.0" />
+    <PackageReference Include="Xunit.SkippableFact" Version="1.4.13" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,5 +32,14 @@
 
   <ItemGroup>
     <Compile Include="..\TestSupport\*.cs" Link="TestSupport\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\docs\contracts\*.json" Link="contracts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\VoxFlow.Core\Resources\voxflow_diarize.py" Link="python\voxflow_diarize.py" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\VoxFlow.Core\Resources\python-requirements.txt" Link="python\python-requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\sidecar\responses\*.json" Link="fixtures\sidecar\responses\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\sidecar\words\*.json" Link="fixtures\sidecar\words\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\fixtures\sidecar\audio\*.wav" Link="fixtures\sidecar\audio\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

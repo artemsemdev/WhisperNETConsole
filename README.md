@@ -48,7 +48,8 @@ VoxFlow accepts the following audio and video formats as input. All formats are 
 - **Configurable quality controls** -- fine-tune segment filtering, hallucination suppression, and confidence thresholds to match your audio characteristics
 - **Startup validation** -- a preflight check verifies all paths, dependencies, and model availability before processing begins
 - **MCP server integration** -- expose transcription capabilities to AI clients (Claude, ChatGPT, GitHub Copilot, VS Code) via the Model Context Protocol
-- **Fully offline** -- no network calls, no API keys, no data leaves the machine
+- **Speaker labeling (local, opt-in)** -- attach `Speaker A` / `Speaker B` labels to the transcript by running a local [pyannote.audio](https://github.com/pyannote/pyannote-audio) diarization sidecar. Off by default, enabled per-run from any host (Desktop toggle, CLI `--speakers`, MCP `enableSpeakers`). No audio, transcript, or speaker data leaves the machine. See the [speaker labeling runbook](docs/runbooks/speaker-labeling.md) for setup and troubleshooting.
+- **Fully offline** -- no network calls, no API keys, no data leaves the machine after models are cached
 
 ## Output Formats
 

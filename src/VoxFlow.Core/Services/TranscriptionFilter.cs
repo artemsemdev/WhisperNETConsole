@@ -46,7 +46,8 @@ internal sealed class TranscriptionFilter : ITranscriptionFilter
                 segment.Start,
                 segment.End,
                 normalizedText,
-                segment.Probability));
+                segment.Probability,
+                segment.Tokens ?? Array.Empty<WhisperToken>()));
         }
 
         var deduplicatedSegments = ApplyDuplicateLoopFiltering(acceptedSegments, skippedSegments, options);

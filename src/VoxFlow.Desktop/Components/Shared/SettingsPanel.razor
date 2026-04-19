@@ -22,9 +22,35 @@
     </div>
 </div>
 
+<div class="settings-sheet-backdrop @(ShowSheet ? "show" : string.Empty)"
+     id="settings-sheet-backdrop"
+     aria-hidden="@((!ShowSheet).ToString().ToLowerInvariant())"
+     @onclick="HandleBackdropClick"></div>
+
+<div class="settings-sheet @(ShowSheet ? "show" : string.Empty)"
+     id="settings-sheet"
+     role="dialog"
+     aria-modal="true"
+     aria-hidden="@((!ShowSheet).ToString().ToLowerInvariant())"
+     aria-label="Settings">
+    <div class="settings-sheet-handle" aria-hidden="true"></div>
+    <SpeakerLabelingToggle IsDisabled="IsDisabled" />
+</div>
+
 @code {
     [Parameter]
     public bool IsDisabled { get; set; }
+
+    [Parameter]
+    public bool ShowSheet { get; set; }
+
+    [Parameter]
+    public EventCallback OnSheetClose { get; set; }
+
+    private Task HandleBackdropClick()
+    {
+        return OnSheetClose.HasDelegate ? OnSheetClose.InvokeAsync() : Task.CompletedTask;
+    }
 
     private static readonly FormatOption[] _options =
     [

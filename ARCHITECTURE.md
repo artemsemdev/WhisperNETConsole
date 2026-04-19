@@ -80,6 +80,46 @@ The processing pipeline is a linear chain of stages. Each stage either succeeds 
 
 In batch mode, the pipeline after model loading repeats per file, with error isolation and a summary report at the end.
 
+## Speaker Labeling Enrichment (optional)
+
+Speaker labeling is an opt-in enrichment layered on top of the accepted-segment pipeline. It does not replace any existing stage and does not run unless the host enables it. The design is specified in [ADR-024](docs/adr/024-local-speaker-labeling-pipeline.md); this section summarizes the shape as shipped.
+
+```
+Accepted segments + WhisperToken[]  ──┐
+                                      ▼
+                            ISpeakerEnrichmentService
+                                      │
+                  normalized WAV ──>  │ ──> IPythonRuntime ──> Python sidecar (voxflow_diarize.py)
+                                      │         (ManagedVenv | SystemPython | Standalone*)
+                                      │                 │
+                                      │                 ▼
+                                      │         speaker segments (JSON, sidecar-diarization-v1)
+                                      ▼
+                            SpeakerMergeService (.NET, in-process)
+                                      │
+                                      ▼
+                            TranscriptDocument + .voxflow.json
+```
+
+`*` `Standalone` mode is reserved by `PythonRuntimeMode` but not yet wired to a runtime implementation. Phase 3 sub-PR P3.5 will either land `StandaloneRuntime` or remove the enum value depending on the `python-build-standalone` spike outcome.
+
+| Component | File | Role |
+|---|---|---|
+| `ISpeakerEnrichmentService` | `src/VoxFlow.Core/Interfaces/ISpeakerEnrichmentService.cs` | Core orchestration seam. Accepts accepted segments + normalized WAV, returns a `TranscriptDocument` or skips with warnings. |
+| `CompositionSpeakerEnrichmentService` / `SpeakerEnrichmentService` | `src/VoxFlow.Core/Services/Diarization/` | Default composition — runs the preflight, invokes `IDiarizationSidecar`, feeds the result into `ISpeakerMergeService`. `NullSpeakerEnrichmentService` is wired when the feature is off so the transcription path is unchanged. |
+| `ISpeakerLabelingPreflight` / `CompositionSpeakerLabelingPreflight` | `src/VoxFlow.Core/Interfaces/ISpeakerLabelingPreflight.cs`, `src/VoxFlow.Core/Services/Diarization/CompositionSpeakerLabelingPreflight.cs` | Validation-time check: verifies the Python runtime is ready and reports HF cache state. Failure is reported as a warning, not a crash. |
+| `IPythonRuntime` + implementations | `src/VoxFlow.Core/Interfaces/IPythonRuntime.cs`, `src/VoxFlow.Core/Services/Python/{ManagedVenvRuntime,SystemPythonRuntime}.cs` | Abstraction over how a Python interpreter is resolved. `ManagedVenvRuntime` owns a venv under `~/Library/Application Support/VoxFlow/python-runtime/` and bootstraps it from [`python-requirements.txt`](src/VoxFlow.Core/Resources/python-requirements.txt) on first enable. `SystemPythonRuntime` resolves `python3` from `PATH` as a dev/CI escape hatch. |
+| `IDiarizationSidecar` / `PyannoteSidecarClient` | `src/VoxFlow.Core/Interfaces/IDiarizationSidecar.cs`, `src/VoxFlow.Core/Services/Diarization/PyannoteSidecarClient.cs` | The cross-runtime boundary. Serializes the `sidecar-diarization-v1` request (version + WAV path), reads the JSON response from stdout, validates it against the embedded schema, maps failures to `DiarizationSidecarException`. |
+| `voxflow_diarize.py` | `src/VoxFlow.Core/Resources/voxflow_diarize.py` | Pure acoustic sidecar. Runs pyannote diarization only — no text or language processing crosses the process boundary (ADR-024 "Architectural rules"). Stashes fd 1 before heavy imports so third-party stdout banners cannot corrupt the JSON envelope. |
+| `ISpeakerMergeService` / `SpeakerMergeService` | `src/VoxFlow.Core/Interfaces/ISpeakerMergeService.cs`, `src/VoxFlow.Core/Services/Diarization/SpeakerMergeService.cs` | Pure .NET logic that assigns each Whisper word to the speaker whose segment has the largest time overlap, groups consecutive same-speaker words into `SpeakerTurn`, and assembles the `TranscriptDocument`. Host-agnostic, fully unit-testable without Python. |
+| `SpeakerLabelingOptions` | `src/VoxFlow.Core/Configuration/SpeakerLabelingOptions.cs` | Config record: `Enabled`, `TimeoutSeconds`, `RuntimeMode`, `ModelId`. Validated at load time. |
+
+**Failure isolation.** Diarization is an enrichment, not a prerequisite — ADR-024 "Failure modes". Every recoverable failure path (Python not ready, sidecar crash, malformed JSON, timeout, license not accepted) is captured as an entry in `TranscribeFileResult.EnrichmentWarnings` so hosts can surface them without conflating with transcription errors. The plain transcript is always produced.
+
+**Host override pattern.** `TranscribeFileRequest.EnableSpeakers` (nullable `bool`) overrides `transcription.speakerLabeling.enabled` for a single request. `null` uses the configured default; `true`/`false` forces. The same pattern applies across Desktop (Ready-screen toggle), CLI (`--speakers` / `--no-speakers`), and MCP (`transcribe_file` `enableSpeakers` parameter). Batch mode mirrors the shape via `BatchTranscribeRequest.EnableSpeakers`. The config object itself is never mutated.
+
+Operational and troubleshooting guidance — first-run bootstrap, HF token setup, license acceptance, `VOXFLOW_RUN_REQUIRES_PYTHON_TESTS` opt-in for integration tests — lives in [docs/runbooks/speaker-labeling.md](docs/runbooks/speaker-labeling.md).
+
 ## Project Responsibilities
 
 | Project | Folder | Responsibility |

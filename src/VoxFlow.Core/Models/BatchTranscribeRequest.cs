@@ -11,4 +11,5 @@ public sealed record BatchTranscribeRequest(
     bool StopOnFirstError = false,
     bool KeepIntermediateFiles = false,
     string? ConfigurationPath = null,
-    int? MaxFiles = null);
+    int? MaxFiles = null,
+    bool? EnableSpeakers = null);

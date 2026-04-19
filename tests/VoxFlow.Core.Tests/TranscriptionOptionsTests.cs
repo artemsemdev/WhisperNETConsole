@@ -105,4 +105,105 @@ public sealed class TranscriptionOptionsTests
         Assert.Equal(3, options.MaxConsecutiveDuplicateSegments);
         Assert.Equal(64, options.MaxDuplicateSegmentTextLength);
     }
+
+    [Fact]
+    public void LoadFromPath_SpeakerLabelingSectionMissing_DefaultsToDisabled()
+    {
+        using var directory = new TemporaryDirectory();
+
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: "/tmp/input.m4a",
+            wavFilePath: "/tmp/output.wav",
+            resultFilePath: "/tmp/result.txt",
+            modelFilePath: "/tmp/model.bin",
+            ffmpegExecutablePath: "ffmpeg");
+
+        var options = TranscriptionOptions.LoadFromPath(settingsPath);
+
+        Assert.False(options.SpeakerLabeling.Enabled);
+        Assert.Equal(SpeakerLabelingOptions.Disabled, options.SpeakerLabeling);
+    }
+
+    [Fact]
+    public void LoadFromPath_SpeakerLabelingSectionPresent_ParsesAllFields()
+    {
+        using var directory = new TemporaryDirectory();
+
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: "/tmp/input.m4a",
+            wavFilePath: "/tmp/output.wav",
+            resultFilePath: "/tmp/result.txt",
+            modelFilePath: "/tmp/model.bin",
+            ffmpegExecutablePath: "ffmpeg",
+            speakerLabeling: new
+            {
+                enabled = true,
+                timeoutSeconds = 900,
+                pythonRuntimeMode = "SystemPython",
+                modelId = "pyannote/custom-model"
+            });
+
+        var options = TranscriptionOptions.LoadFromPath(settingsPath);
+
+        Assert.True(options.SpeakerLabeling.Enabled);
+        Assert.Equal(900, options.SpeakerLabeling.TimeoutSeconds);
+        Assert.Equal(PythonRuntimeMode.SystemPython, options.SpeakerLabeling.RuntimeMode);
+        Assert.Equal("pyannote/custom-model", options.SpeakerLabeling.ModelId);
+    }
+
+    [Fact]
+    public void LoadFromPath_SpeakerLabelingRuntimeMode_IsCaseInsensitive()
+    {
+        using var directory = new TemporaryDirectory();
+
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: "/tmp/input.m4a",
+            wavFilePath: "/tmp/output.wav",
+            resultFilePath: "/tmp/result.txt",
+            modelFilePath: "/tmp/model.bin",
+            ffmpegExecutablePath: "ffmpeg",
+            speakerLabeling: new
+            {
+                enabled = false,
+                timeoutSeconds = 600,
+                pythonRuntimeMode = "managedvenv",
+                modelId = "pyannote/speaker-diarization-3.1"
+            });
+
+        var options = TranscriptionOptions.LoadFromPath(settingsPath);
+
+        Assert.Equal(PythonRuntimeMode.ManagedVenv, options.SpeakerLabeling.RuntimeMode);
+    }
+
+    [Fact]
+    public void LoadFromPath_SpeakerLabelingUnknownRuntimeMode_Throws()
+    {
+        using var directory = new TemporaryDirectory();
+
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: "/tmp/input.m4a",
+            wavFilePath: "/tmp/output.wav",
+            resultFilePath: "/tmp/result.txt",
+            modelFilePath: "/tmp/model.bin",
+            ffmpegExecutablePath: "ffmpeg",
+            speakerLabeling: new
+            {
+                enabled = true,
+                timeoutSeconds = 600,
+                pythonRuntimeMode = "Wat",
+                modelId = "pyannote/speaker-diarization-3.1"
+            });
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => TranscriptionOptions.LoadFromPath(settingsPath));
+
+        Assert.Contains("pythonRuntimeMode", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SystemPython", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("ManagedVenv", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Standalone", exception.Message, StringComparison.Ordinal);
+    }
 }

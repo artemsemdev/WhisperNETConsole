@@ -11,4 +11,9 @@ public sealed record TranscribeFileResult(
     int SkippedSegmentCount,
     TimeSpan Duration,
     IReadOnlyList<string> Warnings,
-    string? TranscriptPreview);
+    string? TranscriptPreview,
+    TranscriptDocument? SpeakerTranscript = null,
+    IReadOnlyList<string>? EnrichmentWarnings = null)
+{
+    public IReadOnlyList<string> EnrichmentWarnings { get; } = EnrichmentWarnings ?? Array.Empty<string>();
+}

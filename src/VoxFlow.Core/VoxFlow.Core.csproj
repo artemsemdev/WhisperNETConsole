@@ -14,6 +14,11 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.0" />
+    <PackageReference Include="NJsonSchema" Version="11.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\contracts\sidecar-diarization-v1.schema.json" LogicalName="VoxFlow.Core.Contracts.sidecar-diarization-v1.schema.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,5 +27,14 @@
       <Private>true</Private>
     </Reference>
   </ItemGroup>
+
+  <!--
+    Resources\voxflow_diarize.py and python-requirements.txt live here because
+    VoxFlow.Core owns the Python sidecar contract. They are NOT CopyToOutputDirectory
+    at the Core level — that would flow them transitively into the MacCatalyst app
+    bundle, which doesn't know how to place them. Tests link them directly (see
+    tests/VoxFlow.Core.Tests/VoxFlow.Core.Tests.csproj). Production packaging will
+    wire them into the app bundle explicitly in a later phase (ADR-024 P1+).
+  -->
 
 </Project>

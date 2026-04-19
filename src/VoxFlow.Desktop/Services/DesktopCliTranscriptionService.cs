@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json.Nodes;
 using VoxFlow.Core.Configuration;
 using VoxFlow.Core.Interfaces;
 using VoxFlow.Core.Models;
@@ -9,6 +10,28 @@ namespace VoxFlow.Desktop.Services;
 
 internal sealed class DesktopCliTranscriptionService : ITranscriptionService
 {
+    internal static Action<JsonObject> BuildTranscriptionMutator(TranscribeFileRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return transcription =>
+        {
+            transcription["inputFilePath"] = request.InputPath;
+            if (!string.IsNullOrWhiteSpace(request.ResultFilePath))
+            {
+                transcription["resultFilePath"] = request.ResultFilePath;
+            }
+            if (request.EnableSpeakers.HasValue)
+            {
+                if (transcription["speakerLabeling"] is not JsonObject speakerLabeling)
+                {
+                    speakerLabeling = new JsonObject();
+                    transcription["speakerLabeling"] = speakerLabeling;
+                }
+                speakerLabeling["enabled"] = request.EnableSpeakers.Value;
+            }
+        };
+    }
+
     private readonly DesktopConfigurationService _configurationService;
     private readonly ITranscriptReader _transcriptReader;
 
@@ -34,14 +57,7 @@ internal sealed class DesktopCliTranscriptionService : ITranscriptionService
         // Run the CLI against a disposable merged snapshot so per-request paths never mutate the user's settings file.
         var configurationPath = _configurationService.WriteMergedConfigurationSnapshot(
             request.ConfigurationPath,
-            transcription =>
-            {
-                transcription["inputFilePath"] = request.InputPath;
-                if (!string.IsNullOrWhiteSpace(request.ResultFilePath))
-                {
-                    transcription["resultFilePath"] = request.ResultFilePath;
-                }
-            },
+            BuildTranscriptionMutator(request),
             applyDesktopRuntimeOverrides: false);
 
         try

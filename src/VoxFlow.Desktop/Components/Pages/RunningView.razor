@@ -1,185 +1,51 @@
 @using System.ComponentModel
 @using System.Globalization
+@using VoxFlow.Core.Models
+@using VoxFlow.Desktop.ViewModels
 @implements IDisposable
 @inject AppViewModel ViewModel
 
 @{
     var hasProgress = ViewModel.CurrentProgress is not null;
-    var percent = hasProgress ? Math.Clamp(ViewModel.CurrentProgress!.PercentComplete, 0, 100) : 0;
-    var isComplete = hasProgress && ViewModel.CurrentProgress!.Stage == VoxFlow.Core.Models.ProgressStage.Complete;
-    var radius = 80.0;
-    var circumference = 2.0 * Math.PI * radius;
-    var dashOffset = isComplete ? 0 : circumference * (1.0 - percent / 100.0);
-    var toRad = Math.PI / 180.0;
-    var progressDeg = percent / 100.0 * 360.0;
-
-    // Blob positions (screen space: 0deg = top, clockwise)
-    var leadAngle = (progressDeg - 90.0) * toRad;
-    var leadCx = 100.0 + radius * Math.Cos(leadAngle);
-    var leadCy = 100.0 + radius * Math.Sin(leadAngle);
-
-    var midAngle = (progressDeg * 0.4 - 90.0) * toRad;
-    var midCx = 100.0 + radius * Math.Cos(midAngle);
-    var midCy = 100.0 + radius * Math.Sin(midAngle);
-
-    var indeterminateArc = circumference * 0.25;
-    var indeterminateGap = circumference * 0.75;
-
-    var wrapperClass = isComplete ? "organic-progress-done" : hasProgress ? "" : "organic-progress-indeterminate";
+    var isComplete = hasProgress && ViewModel.CurrentProgress!.Stage == ProgressStage.Complete;
+    var isFailed = hasProgress && ViewModel.CurrentProgress!.Stage == ProgressStage.Failed;
+    var focus = FocusPhase(ViewModel.PhaseTracker.Phases);
+    var activityMessage = BuildActivityMessage(ViewModel.CurrentProgress, focus, isComplete);
+    var captionState = BuildCaptionState(ViewModel.CurrentProgress, focus, isComplete, isFailed);
+    var fileName = ViewModel.CurrentFileName ?? "audio file";
+    var pulseClass = $"activity-pulse-dot activity-pulse-{focus.Phase.ToString().ToLowerInvariant()}";
 }
 
-<div id="running-screen" aria-label="Running Screen">
-    <div class="organic-progress-wrapper @wrapperClass"
-         role="progressbar"
-         aria-valuenow="@(hasProgress ? $"{percent:F0}" : null)"
-         aria-valuemin="0"
-         aria-valuemax="100"
-         aria-label="Transcription progress">
-        <svg class="organic-progress-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <filter id="blob-blur" x="-100%" y="-100%" width="300%" height="300%">
-                    <feGaussianBlur stdDeviation="5" />
-                </filter>
-                <filter id="arc-glow" x="-50%" y="-50%" width="200%" height="200%">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
-                    <feMerge>
-                        <feMergeNode in="blur" />
-                        <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                </filter>
-                <filter id="center-shadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="2" stdDeviation="8" flood-color="rgba(0,0,0,0.5)" />
-                </filter>
-                <radialGradient id="center-fill" cx="40%" cy="35%" r="65%">
-                    <stop offset="0%" stop-color="#1f1f38" />
-                    <stop offset="100%" stop-color="#1a1a2e" />
-                </radialGradient>
-            </defs>
+<div id="running-screen" class="page-column" aria-label="Running Screen">
 
-            <!-- Ambient glow -->
-            <circle class="organic-ambient" cx="100" cy="100" r="80" fill="none"
-                    stroke="rgba(74,74,255,0.05)" stroke-width="44" />
+    <TopBar />
 
-            <!-- Track ring -->
-            <circle class="organic-track" cx="100" cy="100" r="80" fill="none"
-                    stroke="rgba(42,42,74,0.4)" stroke-width="14" />
+    <div class="running-body">
+        <div class="progress-info">
+            <p class="progress-caption" id="running-caption" aria-live="polite">
+                <span id="running-file-name">@fileName</span>
+                <span class="progress-dot" aria-hidden="true">·</span>
+                <span id="running-stage">@captionState</span>
+            </p>
+        </div>
 
-            @if (hasProgress)
-            {
-                @if (percent > 2)
-                {
-                    <!-- Start blob -->
-                    <circle class="organic-blob organic-blob-1"
-                            cx="100" cy="20" r="16"
-                            fill="rgba(92,92,255,0.30)" filter="url(#blob-blur)" />
+        <PhaseRingStack Tracker="@ViewModel.PhaseTracker" />
 
-                    <!-- Lead blob -->
-                    <circle class="organic-blob organic-blob-2"
-                            cx="@Fmt(leadCx)" cy="@Fmt(leadCy)" r="18"
-                            fill="rgba(74,74,255,0.35)" filter="url(#blob-blur)" />
-                }
-
-                @if (percent > 18)
-                {
-                    <!-- Mid blob -->
-                    <ellipse class="organic-blob organic-blob-3"
-                             cx="@Fmt(midCx)" cy="@Fmt(midCy)" rx="14" ry="10"
-                             fill="rgba(58,58,224,0.25)" filter="url(#blob-blur)" />
-                }
-
-                <!-- Progress arc -->
-                <circle class="organic-arc"
-                        cx="100" cy="100" r="@Fmt(radius)"
-                        fill="none" stroke="rgba(74,74,255,0.85)" stroke-width="12"
-                        stroke-linecap="round"
-                        stroke-dasharray="@Fmt(circumference)"
-                        stroke-dashoffset="@Fmt(dashOffset)"
-                        transform="rotate(-90 100 100)"
-                        filter="url(#arc-glow)" />
-            }
-            else
-            {
-                <!-- Orbiting blobs -->
-                <g class="organic-orbit">
-                    <circle cx="100" cy="20" r="14"
-                            fill="rgba(74,74,255,0.25)" filter="url(#blob-blur)" />
-                    <circle cx="168" cy="140" r="12"
-                            fill="rgba(92,92,255,0.20)" filter="url(#blob-blur)" />
-                </g>
-
-                <!-- Spinning arc -->
-                <circle class="organic-spin-arc"
-                        cx="100" cy="100" r="@Fmt(radius)"
-                        fill="none" stroke="rgba(74,74,255,0.70)" stroke-width="12"
-                        stroke-linecap="round"
-                        stroke-dasharray="@Fmt(indeterminateArc) @Fmt(indeterminateGap)" />
-            }
-
-            <!-- Inner circle -->
-            <circle cx="100" cy="100" r="58" fill="url(#center-fill)" filter="url(#center-shadow)" />
-            <circle class="organic-inner-border" cx="100" cy="100" r="58" fill="none"
-                    stroke="rgba(74,74,255,0.10)" stroke-width="1" />
-        </svg>
-
-        <div class="organic-progress-center">
-            @if (isComplete)
-            {
-                <div class="organic-done-content">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5"
-                              stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <span class="organic-done-label">Done</span>
-                </div>
-            }
-            else if (hasProgress)
-            {
-                <span class="organic-progress-value" id="running-percent">@($"{percent:F0}")</span>
-                <span class="organic-progress-unit">%</span>
-            }
-            else
-            {
-                <div class="organic-progress-spinner"></div>
-            }
+        <div class="activity-panel" id="activity-panel" aria-live="polite">
+            <span class="@pulseClass" aria-hidden="true"></span>
+            <span class="activity-message">@activityMessage</span>
         </div>
     </div>
 
-    <div class="progress-info">
-        @if (isComplete)
-        {
-            <p class="progress-message progress-message-done" id="running-stage">Transcription complete</p>
-        }
-        else if (hasProgress)
-        {
-            <p class="progress-message" id="running-stage" aria-live="polite">
-                @(!string.IsNullOrEmpty(ViewModel.CurrentProgress!.Message)
-                    ? ViewModel.CurrentProgress.Message
-                    : FormatStage(ViewModel.CurrentProgress.Stage))
-            </p>
-            <p class="progress-meta">
-                <span id="running-file-name">@(ViewModel.CurrentFileName ?? "audio file")</span>
-                <span class="progress-dot" aria-hidden="true">&middot;</span>
-                <span>@FormatElapsed(ViewModel.CurrentProgress.Elapsed)</span>
-            </p>
-        }
-        else
-        {
-            <p class="progress-message" id="running-starting-label">Starting transcription...</p>
-            <p class="progress-meta">
-                <span id="running-file-name">@(ViewModel.CurrentFileName ?? "audio file")</span>
-            </p>
-        }
+    <div class="btn-group running-actions" style="@(isComplete ? "opacity:0;pointer-events:none" : "")">
+        <button id="cancel-transcription-button"
+                class="btn btn-secondary"
+                aria-label="Cancel Transcription"
+                title="Cancel Transcription"
+                @onclick="ViewModel.CancelTranscription">
+            Cancel
+        </button>
     </div>
-</div>
-
-<div class="btn-group mt-4" style="@(isComplete ? "opacity:0;pointer-events:none" : "")">
-    <button id="cancel-transcription-button"
-            class="btn btn-secondary"
-            aria-label="Cancel Transcription"
-            title="Cancel Transcription"
-            @onclick="ViewModel.CancelTranscription">
-        Cancel
-    </button>
 </div>
 
 @code {
@@ -193,26 +59,51 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private static string Fmt(double val) =>
-        val.ToString("F2", CultureInfo.InvariantCulture);
-
-    private static string FormatElapsed(TimeSpan elapsed)
+    private static PhaseState FocusPhase(IReadOnlyList<PhaseState> phases)
     {
-        if (elapsed.TotalHours >= 1)
-            return elapsed.ToString(@"h\:mm\:ss");
-        return elapsed.ToString(@"m\:ss");
+        for (var i = 0; i < phases.Count; i++)
+            if (phases[i].Status == PhaseStatus.Failed) return phases[i];
+        for (var i = 0; i < phases.Count; i++)
+            if (phases[i].Status == PhaseStatus.Running) return phases[i];
+        for (var i = phases.Count - 1; i >= 0; i--)
+            if (phases[i].Status == PhaseStatus.Done) return phases[i];
+        return phases[0];
     }
 
-    private static string FormatStage(VoxFlow.Core.Models.ProgressStage stage) => stage switch
+    private static string BuildActivityMessage(ProgressUpdate? update, PhaseState focus, bool isComplete)
     {
-        VoxFlow.Core.Models.ProgressStage.Validating => "Validating",
-        VoxFlow.Core.Models.ProgressStage.Converting => "Converting",
-        VoxFlow.Core.Models.ProgressStage.LoadingModel => "Loading model",
-        VoxFlow.Core.Models.ProgressStage.Transcribing => "Transcribing",
-        VoxFlow.Core.Models.ProgressStage.Filtering => "Filtering",
-        VoxFlow.Core.Models.ProgressStage.Writing => "Writing",
-        VoxFlow.Core.Models.ProgressStage.Complete => "Complete",
-        VoxFlow.Core.Models.ProgressStage.Failed => "Failed",
+        if (update is null) return "starting";
+        if (isComplete) return "done";
+        if (!string.IsNullOrWhiteSpace(update.Message)) return update.Message!;
+        if (!string.IsNullOrWhiteSpace(focus.SubStatus)) return focus.SubStatus!;
+        return FormatStage(update.Stage).ToLowerInvariant();
+    }
+
+    private static string BuildCaptionState(ProgressUpdate? update, PhaseState focus, bool isComplete, bool isFailed)
+    {
+        if (update is null) return "Starting transcription...";
+        if (isComplete) return "Transcription complete";
+        if (isFailed) return "Transcription failed";
+        return focus.Phase switch
+        {
+            ProgressPhase.Transcription => "Transcribing...",
+            ProgressPhase.Diarization => "Identifying speakers...",
+            ProgressPhase.Merge => "Writing output...",
+            _ => FormatStage(update.Stage)
+        };
+    }
+
+    private static string FormatStage(ProgressStage stage) => stage switch
+    {
+        ProgressStage.Validating => "Validating",
+        ProgressStage.Converting => "Converting",
+        ProgressStage.LoadingModel => "Loading model",
+        ProgressStage.Transcribing => "Transcribing",
+        ProgressStage.Filtering => "Filtering",
+        ProgressStage.Diarizing => "Diarizing",
+        ProgressStage.Writing => "Writing",
+        ProgressStage.Complete => "Complete",
+        ProgressStage.Failed => "Failed",
         _ => stage.ToString()
     };
 

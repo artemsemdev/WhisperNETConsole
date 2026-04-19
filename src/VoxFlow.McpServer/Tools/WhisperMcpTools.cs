@@ -76,6 +76,8 @@ internal sealed class WhisperMcpTools
         string? resultFilePath = null,
         [Description("Optional absolute path to a configuration file.")]
         string? configurationPath = null,
+        [Description("Overrides transcription.speakerLabeling.enabled for this request only. Omit (null) to use the server's configured default.")]
+        bool? enableSpeakers = null,
         CancellationToken cancellationToken = default)
     {
         // Validate paths.
@@ -108,7 +110,8 @@ internal sealed class WhisperMcpTools
         var request = new TranscribeFileRequest(
             InputPath: inputPath,
             ResultFilePath: resultFilePath,
-            ConfigurationPath: configurationPath);
+            ConfigurationPath: configurationPath,
+            EnableSpeakers: enableSpeakers);
 
         var result = await transcriptionService.TranscribeFileAsync(request, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
