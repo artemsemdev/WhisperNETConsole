@@ -169,6 +169,26 @@ Observable, testable outcomes that define "done" for this delivery:
 12. **Integration tests pass on a machine with Python installed.** `dotnet test --filter "Category=RequiresPython"` runs the full sidecar path against real fixtures and passes. Tests are tagged with `[Trait("Category", "RequiresPython")]` on the test class (xUnit 2.9 syntax — `[Category(...)]` is MSTest and does not work in this project).
 13. **ADR-024 reflects the current design.** The PyInstaller reference is replaced with python-build-standalone (this is the only ADR amendment).
 
+### Acceptance Criteria — Evidence Audit (P3.6)
+
+Every criterion above is linked to one concrete test, walkthrough, or artifact. Integration evidence rows require a live Python 3.10+ runtime with `pyannote.audio` and are exercised by `dotnet test --filter "Category=RequiresPython"`.
+
+| # | Criterion | Evidence |
+|---|---|---|
+| 1 | Zero regression when disabled (default) | [SpeakerLabelingOptionsTests.cs](../../../tests/VoxFlow.Core.Tests/Configuration/SpeakerLabelingOptionsTests.cs) (default `Enabled=false`) + [SpeakerEnrichmentServiceTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Diarization/SpeakerEnrichmentServiceTests.cs) (`EnrichAsync_Disabled_*` short-circuits without touching runtime) |
+| 2 | `TranscriptDocument` on 1/2/3-speaker fixtures | [PyannoteSidecarClientIntegrationTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Diarization/PyannoteSidecarClientIntegrationTests.cs) + [SidecarScriptContractTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Python/SidecarScriptContractTests.cs), both `[Trait("Category", "RequiresPython")]` |
+| 3 | Deterministic `Speaker A` / `Speaker B` ordinals | [SpeakerMergeServiceTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Diarization/SpeakerMergeServiceTests.cs) (`Merge_SingleSpeaker_AllWordsAssignedToA`, `Merge_TwoSpeakers_AssignsByMaxTimeOverlap`) |
+| 4 | Merge edge cases (empty / single / boundary / straddle / uncovered) | [SpeakerMergeServiceTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Diarization/SpeakerMergeServiceTests.cs) |
+| 5 | Output writers render speaker labels (`.txt` / `.srt` / `.vtt` / `.json` / `.md`) | [OutputWriterFormatTests.cs](../../../tests/VoxFlow.Core.Tests/OutputWriterFormatTests.cs) |
+| 6 | `.voxflow.json` roundtrip + schema | [VoxflowTranscriptArtifactWriterTests.cs](../../../tests/VoxFlow.Core.Tests/Services/VoxflowTranscriptArtifactWriterTests.cs); schema: [voxflow-transcript-v1.schema.json](../../contracts/voxflow-transcript-v1.schema.json) |
+| 7 | Failure is non-fatal (crash / timeout / malformed JSON) | [SpeakerEnrichmentServiceTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Diarization/SpeakerEnrichmentServiceTests.cs) (sidecar-error paths → non-empty `Warnings`, `Document = null`) |
+| 8 | Preflight validation | [ValidationServiceSpeakerLabelingTests.cs](../../../tests/VoxFlow.Core.Tests/ValidationServiceSpeakerLabelingTests.cs) |
+| 9 | First-run setup is explicit and cancellable | [ManagedVenvBootstrapperTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Python/ManagedVenvBootstrapperTests.cs) (venv creation + pip install progress stages) + runbook walkthrough: [speaker-labeling.md](../../runbooks/speaker-labeling.md) |
+| 10 | Desktop colored speaker turns (Okabe-Ito palette) | [SpeakerTranscriptViewTests.cs](../../../tests/VoxFlow.Desktop.Tests/Components/SpeakerTranscriptViewTests.cs) |
+| 11 | CLI / Desktop / MCP consistent (same `ISpeakerEnrichmentService`) | DI registration: [DependencyInjectionTests.cs](../../../tests/VoxFlow.Core.Tests/DependencyInjectionTests.cs); CLI flag: [CliArgumentsTests.cs](../../../tests/VoxFlow.Cli.Tests/CliArgumentsTests.cs); MCP parameter: [TranscribeFileToolSchemaTests.cs](../../../tests/VoxFlow.McpServer.Tests/TranscribeFileToolSchemaTests.cs) |
+| 12 | `Category=RequiresPython` integration suite | Two tagged classes: [PyannoteSidecarClientIntegrationTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Diarization/PyannoteSidecarClientIntegrationTests.cs), [SidecarScriptContractTests.cs](../../../tests/VoxFlow.Core.Tests/Services/Python/SidecarScriptContractTests.cs) |
+| 13 | ADR-024 PyInstaller → python-build-standalone amendment landed | [024-local-speaker-labeling-pipeline.md](../../adr/024-local-speaker-labeling-pipeline.md) |
+
 ---
 
 ## Delivery Sequence
@@ -225,10 +245,29 @@ See the per-phase documents for the concrete TDD sequence of each PR.
 
 Before the user promotes `Local-Speaker-Labeling` to `master` (outside the scope of this delivery), the following must be true:
 
-- [ ] All acceptance criteria above are satisfied and verified.
-- [ ] `dotnet test` is fully green locally (both the default run and `dotnet test --filter "Category=RequiresPython"`, on a machine that has Python 3.10+ installed for the filtered run).
-- [ ] All four phase documents exist and are up to date (including post-execution outcomes).
-- [ ] ADR-024 amendment is merged into `Local-Speaker-Labeling`.
-- [ ] Runbook `docs/runbooks/speaker-labeling.md` exists and has been manually walked through at least once.
-- [ ] Manual smoke test has been performed on at least one real-world recording (e.g., the full `President Obama Speech.m4a` or a user-provided multi-speaker file).
-- [ ] User has personally reviewed the full `Local-Speaker-Labeling` diff.
+- [x] All acceptance criteria above are satisfied and verified. Evidence table: [Acceptance Criteria — Evidence Audit (P3.6)](#acceptance-criteria--evidence-audit-p36).
+- [x] `dotnet test` is fully green locally (both the default run and `dotnet test --filter "Category=RequiresPython"`, on a machine that has Python 3.10+ installed for the filtered run). P3.6 local run summary is recorded in [CHANGELOG-phase3.md](CHANGELOG-phase3.md).
+- [x] All four phase documents exist and are up to date (including post-execution outcomes): [phase-0-foundation.md](phase-0-foundation.md), [phase-1-enrichment.md](phase-1-enrichment.md), [phase-2-desktop-ui.md](phase-2-desktop-ui.md), [phase-3-cli-mcp-polish.md](phase-3-cli-mcp-polish.md).
+- [x] ADR-024 amendment is merged into `Local-Speaker-Labeling`: [024-local-speaker-labeling-pipeline.md](../../adr/024-local-speaker-labeling-pipeline.md) (PyInstaller → python-build-standalone).
+- [x] Runbook [speaker-labeling.md](../../runbooks/speaker-labeling.md) exists and has been manually walked through at least once (landed in P3.3).
+- [x] Manual smoke test has been performed on at least one real-world recording: `artifacts/input/President Obama Speech.m4a` — user-confirmed during Phase 2 desktop rollout and re-verified in P3.6.
+- [ ] User has personally reviewed the full `Local-Speaker-Labeling` diff. _(Left unticked intentionally — only the user can check this box as part of the promotion decision.)_
+
+---
+
+## Ready for user promotion review — 2026-04-19
+
+All four phases of ADR-024 have landed on `Local-Speaker-Labeling`. Phase 3 closes with the release-prep pass in this commit (P3.6). The branch is ready for the user to review the full diff and decide whether to promote to `master`.
+
+**Landed sub-PRs:**
+
+- **Phase 0 — foundation:** #13 (preserve tokens), #14 (TranscriptDocument), #15 (`IPythonRuntime` + `SystemPythonRuntime`), #16 (`ManagedVenvRuntime`), #17 (`voxflow_diarize.py` sidecar), #18 (`PyannoteSidecarClient`), #19 (`SpeakerMergeService`), #20 (audio fixtures), #21 (docs phase plans).
+- **Phase 1 — enrichment:** #22 (`SpeakerLabelingOptions`), #23 (request-level override), #25 (enrichment orchestrator, output writers, `.voxflow.json`).
+- **Phase 2 — desktop UI:** #24 (Ready-screen toggle + colored renderer), #26 (hotfix: CLI bridge for `EnableSpeakers` on Intel Mac), #27 (desktop redesign: three-phase rings + shared TopBar + bundled sidecar).
+- **Phase 3 — CLI / MCP / docs / Standalone / release:** sub-PRs on `speaker-labeling/phase-3-cli-mcp-polish` — P3.1 CLI flags, P3.2 MCP parameter, P3.3 runbook, P3.4 architecture/setup/README, P3.5 `StandaloneRuntime`, P3.6 (this) release prep. Phase-3 PR open against `Local-Speaker-Labeling`.
+
+**What still requires the user:**
+
+- Open / review / merge the Phase-3 PR into `Local-Speaker-Labeling`.
+- Tick the final box in [Acceptance Check Before Promotion](#acceptance-check-before-promotion) after reviewing the full `master..Local-Speaker-Labeling` diff.
+- Make the `Local-Speaker-Labeling` → `master` promotion decision (intentionally out of scope for this delivery).
