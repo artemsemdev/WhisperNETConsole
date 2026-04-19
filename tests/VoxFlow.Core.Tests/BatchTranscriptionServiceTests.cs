@@ -214,6 +214,149 @@ public sealed class BatchTranscriptionServiceTests
     }
 
     [Fact]
+    public async Task TranscribeBatchAsync_EnableSpeakersTrue_OverridesDisabledConfig_InvokesEnrichment()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        var outputDir = Path.Combine(directory.Path, "output");
+        var tempDir = Path.Combine(directory.Path, "temp");
+        Directory.CreateDirectory(inputDir);
+        Directory.CreateDirectory(outputDir);
+        Directory.CreateDirectory(tempDir);
+
+        var inputPath = Path.Combine(inputDir, "demo.m4a");
+        var outputPath = Path.Combine(outputDir, "demo.txt");
+        var tempWavPath = Path.Combine(tempDir, "demo.wav");
+        File.WriteAllText(inputPath, "stub");
+
+        // Config defaults speaker labeling to disabled (no speakerLabeling section written).
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: string.Empty,
+            wavFilePath: string.Empty,
+            resultFilePath: string.Empty,
+            modelFilePath: Path.Combine(directory.Path, "model.bin"),
+            ffmpegExecutablePath: "ffmpeg",
+            processingMode: "batch",
+            batch: new
+            {
+                inputDirectory = inputDir,
+                outputDirectory = outputDir,
+                tempDirectory = tempDir,
+                filePattern = "*.m4a",
+                summaryFilePath = Path.Combine(outputDir, "summary.txt")
+            });
+
+        var discovery = new RecordingFileDiscoveryService(
+            [
+                new DiscoveredFile(inputPath, outputPath, tempWavPath, DiscoveryStatus.Ready, null)
+            ]);
+
+        var recordingEnrichment = new RecordingSpeakerEnrichmentService();
+        var recordingArtifactWriter = new RecordingVoxflowArtifactWriter();
+
+        var service = new BatchTranscriptionService(
+            new StubBatchConfigurationService(settingsPath),
+            new StubBatchValidationService(),
+            discovery,
+            new SuccessfulAudioConversionService(),
+            new NoOpModelService(),
+            new SuccessfulWavAudioLoader(),
+            new ReportingLanguageSelectionService(),
+            new RecordingOutputWriter(),
+            new RecordingBatchSummaryWriter(),
+            recordingEnrichment,
+            recordingArtifactWriter);
+
+        var result = await service.TranscribeBatchAsync(
+            new BatchTranscribeRequest(
+                inputDir,
+                outputDir,
+                ConfigurationPath: settingsPath,
+                EnableSpeakers: true));
+
+        Assert.Single(result.Results);
+        Assert.Equal("Success", result.Results[0].Status);
+        Assert.Equal(1, recordingEnrichment.CallCount);
+        Assert.Equal(1, recordingArtifactWriter.CallCount);
+    }
+
+    [Fact]
+    public async Task TranscribeBatchAsync_EnableSpeakersFalse_OverridesEnabledConfig_SkipsEnrichment()
+    {
+        using var directory = new TemporaryDirectory();
+        var inputDir = Path.Combine(directory.Path, "input");
+        var outputDir = Path.Combine(directory.Path, "output");
+        var tempDir = Path.Combine(directory.Path, "temp");
+        Directory.CreateDirectory(inputDir);
+        Directory.CreateDirectory(outputDir);
+        Directory.CreateDirectory(tempDir);
+
+        var inputPath = Path.Combine(inputDir, "demo.m4a");
+        var outputPath = Path.Combine(outputDir, "demo.txt");
+        var tempWavPath = Path.Combine(tempDir, "demo.wav");
+        File.WriteAllText(inputPath, "stub");
+
+        // Config enables speaker labeling; the request flag must override it to false.
+        var settingsPath = TestSettingsFileFactory.Write(
+            directory.Path,
+            inputFilePath: string.Empty,
+            wavFilePath: string.Empty,
+            resultFilePath: string.Empty,
+            modelFilePath: Path.Combine(directory.Path, "model.bin"),
+            ffmpegExecutablePath: "ffmpeg",
+            processingMode: "batch",
+            batch: new
+            {
+                inputDirectory = inputDir,
+                outputDirectory = outputDir,
+                tempDirectory = tempDir,
+                filePattern = "*.m4a",
+                summaryFilePath = Path.Combine(outputDir, "summary.txt")
+            },
+            speakerLabeling: new
+            {
+                enabled = true,
+                modelId = "pyannote/test",
+                pythonRuntimeMode = "SystemPython",
+                timeoutSeconds = 60
+            });
+
+        var discovery = new RecordingFileDiscoveryService(
+            [
+                new DiscoveredFile(inputPath, outputPath, tempWavPath, DiscoveryStatus.Ready, null)
+            ]);
+
+        var recordingEnrichment = new RecordingSpeakerEnrichmentService();
+        var recordingArtifactWriter = new RecordingVoxflowArtifactWriter();
+
+        var service = new BatchTranscriptionService(
+            new StubBatchConfigurationService(settingsPath),
+            new StubBatchValidationService(),
+            discovery,
+            new SuccessfulAudioConversionService(),
+            new NoOpModelService(),
+            new SuccessfulWavAudioLoader(),
+            new ReportingLanguageSelectionService(),
+            new RecordingOutputWriter(),
+            new RecordingBatchSummaryWriter(),
+            recordingEnrichment,
+            recordingArtifactWriter);
+
+        var result = await service.TranscribeBatchAsync(
+            new BatchTranscribeRequest(
+                inputDir,
+                outputDir,
+                ConfigurationPath: settingsPath,
+                EnableSpeakers: false));
+
+        Assert.Single(result.Results);
+        Assert.Equal("Success", result.Results[0].Status);
+        Assert.Equal(0, recordingEnrichment.CallCount);
+        Assert.Equal(0, recordingArtifactWriter.CallCount);
+    }
+
+    [Fact]
     public async Task TranscribeBatchAsync_ReportsNestedProgress_ForCurrentFile()
     {
         using var directory = new TemporaryDirectory();

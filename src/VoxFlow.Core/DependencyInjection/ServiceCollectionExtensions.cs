@@ -33,10 +33,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISpeakerMergeService, SpeakerMergeService>();
         services.AddSingleton<IProcessLauncher, DefaultProcessLauncher>();
         services.AddSingleton<IVenvPaths, DefaultVenvPaths>();
+        services.AddSingleton<IStandaloneRuntimePaths, DefaultStandaloneRuntimePaths>();
         services.AddSingleton<ISpeakerEnrichmentService>(sp =>
             new CompositionSpeakerEnrichmentService(
                 sp.GetRequiredService<IProcessLauncher>(),
                 sp.GetRequiredService<IVenvPaths>(),
+                sp.GetRequiredService<IStandaloneRuntimePaths>(),
                 sp.GetRequiredService<ISpeakerMergeService>(),
                 ResolveSidecarScriptPath()));
         services.AddSingleton<ISpeakerLabelingPreflight>(sp =>

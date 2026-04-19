@@ -9,6 +9,25 @@ internal static class Program
 {
     public static async Task<int> Main(string[] args)
     {
+        CliArguments cliArgs;
+        try
+        {
+            cliArgs = CliArguments.Parse(args);
+        }
+        catch (ArgumentException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            // Distinct exit code so scripts can tell "user typed a bad flag" (2) apart
+            // from "startup validation failed" (1).
+            return 2;
+        }
+
+        if (cliArgs.ShowHelp)
+        {
+            Console.WriteLine(CliArguments.HelpText);
+            return 0;
+        }
+
         var services = new ServiceCollection();
         services.AddVoxFlowCore();
         // Fail fast on registration mistakes because this host is the composition root for the CLI pipeline.
@@ -55,10 +74,10 @@ internal static class Program
             // Keep mode selection in the entry point so the Core services stay focused on one workflow each.
             if (options.IsBatchMode)
             {
-                return await RunBatchAsync(provider, options, cts.Token);
+                return await RunBatchAsync(provider, options, cliArgs.EnableSpeakers, cts.Token);
             }
 
-            return await RunSingleFileAsync(provider, options, cts.Token);
+            return await RunSingleFileAsync(provider, options, cliArgs.EnableSpeakers, cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -75,6 +94,7 @@ internal static class Program
     private static async Task<int> RunSingleFileAsync(
         ServiceProvider provider,
         VoxFlow.Core.Configuration.TranscriptionOptions options,
+        bool? enableSpeakersOverride,
         CancellationToken cancellationToken)
     {
         Console.WriteLine("Starting transcription...");
@@ -82,7 +102,9 @@ internal static class Program
         var transcriptionService = provider.GetRequiredService<ITranscriptionService>();
         using var progress = new CliProgressHandler(options.ConsoleProgress);
         // The CLI host resolves its input path from configuration rather than command-line arguments.
-        var request = new TranscribeFileRequest(options.InputFilePath);
+        var request = new TranscribeFileRequest(
+            options.InputFilePath,
+            EnableSpeakers: enableSpeakersOverride);
         var result = await transcriptionService.TranscribeFileAsync(request, progress, cancellationToken);
 
         if (!result.Success)
@@ -99,6 +121,7 @@ internal static class Program
     private static async Task<int> RunBatchAsync(
         ServiceProvider provider,
         VoxFlow.Core.Configuration.TranscriptionOptions options,
+        bool? enableSpeakersOverride,
         CancellationToken cancellationToken)
     {
         Console.WriteLine("Starting batch processing...");
@@ -111,7 +134,8 @@ internal static class Program
             options.Batch.FilePattern,
             options.Batch.SummaryFilePath,
             options.Batch.StopOnFirstError,
-            options.Batch.KeepIntermediateFiles);
+            options.Batch.KeepIntermediateFiles,
+            EnableSpeakers: enableSpeakersOverride);
         var result = await batchService.TranscribeBatchAsync(request, progress, cancellationToken);
 
         Console.WriteLine($"Batch complete: {result.Succeeded} succeeded, {result.Failed} failed, {result.Skipped} skipped.");

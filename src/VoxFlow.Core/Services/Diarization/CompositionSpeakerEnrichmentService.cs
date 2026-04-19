@@ -30,17 +30,19 @@ public sealed class CompositionSpeakerEnrichmentService : ISpeakerEnrichmentServ
     public CompositionSpeakerEnrichmentService(
         IProcessLauncher launcher,
         IVenvPaths venvPaths,
+        IStandaloneRuntimePaths standalonePaths,
         ISpeakerMergeService mergeService,
         string sidecarScriptPath)
     {
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(venvPaths);
+        ArgumentNullException.ThrowIfNull(standalonePaths);
         ArgumentNullException.ThrowIfNull(mergeService);
         ArgumentException.ThrowIfNullOrWhiteSpace(sidecarScriptPath);
 
         _innerFactory = options =>
         {
-            var runtime = BuildRuntime(options.RuntimeMode, launcher, venvPaths);
+            var runtime = BuildRuntime(options.RuntimeMode, launcher, venvPaths, standalonePaths);
             var bootstrapper = BuildBootstrapper(options.RuntimeMode, runtime);
             var sidecar = new PyannoteSidecarClient(
                 runtime,
@@ -79,29 +81,20 @@ public sealed class CompositionSpeakerEnrichmentService : ISpeakerEnrichmentServ
             return Task.FromResult(SpeakerEnrichmentResult.Empty);
         }
 
-        if (options.RuntimeMode == PythonRuntimeMode.Standalone)
-        {
-            return Task.FromResult(new SpeakerEnrichmentResult(
-                Document: null,
-                Warnings: new[]
-                {
-                    "speaker-labeling: runtime mode Standalone is not yet supported in Phase 1."
-                },
-                RuntimeBootstrapped: false));
-        }
-
         var inner = _innerFactory(options);
         return inner.EnrichAsync(wavPath, segments, metadata, options, progress, cancellationToken);
     }
 
-    private static IPythonRuntime BuildRuntime(
+    internal static IPythonRuntime BuildRuntime(
         PythonRuntimeMode mode,
         IProcessLauncher launcher,
-        IVenvPaths venvPaths)
+        IVenvPaths venvPaths,
+        IStandaloneRuntimePaths standalonePaths)
         => mode switch
         {
             PythonRuntimeMode.ManagedVenv => new ManagedVenvRuntime(launcher, venvPaths),
             PythonRuntimeMode.SystemPython => new SystemPythonRuntime(launcher),
+            PythonRuntimeMode.Standalone => new StandaloneRuntime(standalonePaths, launcher),
             _ => throw new NotSupportedException($"Unsupported runtime mode: {mode}")
         };
 
