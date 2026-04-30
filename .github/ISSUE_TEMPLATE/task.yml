@@ -1,0 +1,71 @@
+name: Task
+description: A chore, refactor, or non-feature backlog item
+title: "[Task]: "
+labels:
+  - task
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This is internal work, not a user-visible bug or feature request.
+          required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of work
+      options:
+        - Refactor
+        - Tech debt
+        - Infrastructure or build
+        - Release or packaging
+        - Testing or CI
+        - Documentation infrastructure
+        - Architecture or design
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected area
+      options:
+        - CLI
+        - Desktop
+        - MCP Server
+        - Core library
+        - Build or packaging
+        - Repo-wide
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why this work is worth doing now. Include blocking dependencies if any.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in and out of scope for this task.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: A short checklist that tells the reviewer this task is finished.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, related issues, ADRs, or constraints. Redact sensitive data.
